@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
@@ -9,8 +8,10 @@ import 'package:call_tracker/ui/widgets/app_top_bar.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
 
 // ponytail: no design provided yet for the real dashboard, placeholder until one exists.
-// The call-monitor debug section below only ever renders in debug/test builds (kDebugMode) —
-// it must never ship to agents, or they'd learn exactly what the detector is watching for.
+// Flip this to false before shipping to agents — it must never ship on, or they'd learn
+// exactly what the detector is watching for.
+const bool kShowCallMonitor = true;
+
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
 
@@ -24,7 +25,7 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
-    if (kDebugMode) _load();
+    if (kShowCallMonitor) _load();
   }
 
   Future<void> _load() async {
@@ -37,7 +38,7 @@ class _DashboardViewState extends State<DashboardView> {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
       appBar: const AppTopBar(title: 'Dashboard'),
-      body: kDebugMode ? _buildMonitorSection() : Center(child: CustomText.subtitle(text: 'Dashboard coming soon')),
+      body: kShowCallMonitor ? _buildMonitorSection() : Center(child: CustomText.subtitle(text: 'Dashboard coming soon')),
     );
   }
 
