@@ -63,7 +63,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
       ),
     );
 
-    final placed = await NativeCallService.placeCall("0782061943");
+    final placed = await NativeCallService.placeCall(widget.student.phone);
     if (!placed) {
       await CallMonitor.clearPending();
       if (!mounted) return;
