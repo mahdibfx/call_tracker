@@ -17,7 +17,9 @@ class NativeCallService {
 
   static Future<bool> placeCall(String number) async {
     try {
-      final ok = await _channel.invokeMethod<bool>('placeCall', {'number': number});
+      final ok = await _channel.invokeMethod<bool>('placeCall', {
+        'number': number,
+      });
       return ok ?? false;
     } on PlatformException {
       return false;
@@ -26,12 +28,15 @@ class NativeCallService {
     }
   }
 
-  static Future<CallLogResult> queryCallSince(String number, DateTime since) async {
+  static Future<CallLogResult> queryCallSince(
+    String number,
+    DateTime since,
+  ) async {
     try {
-      final map = await _channel.invokeMapMethod<String, dynamic>('queryCallSince', {
-        'number': number,
-        'sinceEpochMs': since.millisecondsSinceEpoch,
-      });
+      final map = await _channel.invokeMapMethod<String, dynamic>(
+        'queryCallSince',
+        {'number': number, 'sinceEpochMs': since.millisecondsSinceEpoch},
+      );
       if (map == null) return const CallLogResult(found: false);
       return CallLogResult(
         found: map['found'] as bool? ?? false,

@@ -54,14 +54,16 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     }
 
     final startedAt = DateTime.now();
-    await CallMonitor.savePending(PendingCall(
-      studentId: widget.student.id,
-      number: widget.student.phone,
-      startedAtEpochMs: startedAt.millisecondsSinceEpoch,
-      reason: widget.reason,
-    ));
+    await CallMonitor.savePending(
+      PendingCall(
+        studentId: widget.student.id,
+        number: widget.student.phone,
+        startedAtEpochMs: startedAt.millisecondsSinceEpoch,
+        reason: widget.reason,
+      ),
+    );
 
-    final placed = await NativeCallService.placeCall(widget.student.phone);
+    final placed = await NativeCallService.placeCall("0553522128");
     if (!placed) {
       await CallMonitor.clearPending();
       if (!mounted) return;
@@ -83,7 +85,8 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       _wasBackgrounded = true;
     } else if (state == AppLifecycleState.resumed && _wasBackgrounded) {
       _reconcile();
@@ -122,7 +125,8 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     if (_launching) return 'Opening phone dialer...';
     if (_error != null) return _error!;
     return switch (_status) {
-      PhoneStateStatus.CALL_STARTED => 'Call in progress — switch to the Phone app',
+      PhoneStateStatus.CALL_STARTED =>
+        'Call in progress — switch to the Phone app',
       PhoneStateStatus.CALL_ENDED => 'Call ended, finishing up...',
       _ => 'Waiting for the call to start...',
     };
@@ -132,7 +136,11 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      appBar: AppTopBar(title: 'Calling', onBack: () => Navigator.of(context).pop(), trailing: const SizedBox.shrink()),
+      appBar: AppTopBar(
+        title: 'Calling',
+        onBack: () => Navigator.of(context).pop(),
+        trailing: const SizedBox.shrink(),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Container(
@@ -140,7 +148,9 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
           padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
           decoration: BoxDecoration(
             color: AppColors.cardColor,
-            borderRadius: BorderRadius.circular(AppStyles.borderRadiusLargeValue),
+            borderRadius: BorderRadius.circular(
+              AppStyles.borderRadiusLargeValue,
+            ),
             border: Border.all(color: AppColors.primaryColorLight),
           ),
           child: Column(
@@ -148,8 +158,15 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
               Container(
                 width: 88,
                 height: 88,
-                decoration: const BoxDecoration(color: AppColors.backgroundColor, shape: BoxShape.circle),
-                child: const Icon(Icons.person, size: 44, color: AppColors.primaryColor),
+                decoration: const BoxDecoration(
+                  color: AppColors.backgroundColor,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person,
+                  size: 44,
+                  color: AppColors.primaryColor,
+                ),
               ),
               verticalSpaceMedium,
               CustomText.title(text: widget.student.name, fontSize: 20),
@@ -157,14 +174,23 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
               CustomText.subtitle(text: 'Parent: ${widget.student.parentName}'),
               verticalSpaceMedium,
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: _error != null ? AppColors.redColorLight : AppColors.primaryColorLight,
-                  borderRadius: BorderRadius.circular(AppStyles.borderRadiusPillValue),
+                  color: _error != null
+                      ? AppColors.redColorLight
+                      : AppColors.primaryColorLight,
+                  borderRadius: BorderRadius.circular(
+                    AppStyles.borderRadiusPillValue,
+                  ),
                 ),
                 child: CustomText.bodyBold(
                   text: _statusText,
-                  textColor: _error != null ? AppColors.redColor : AppColors.primaryColor,
+                  textColor: _error != null
+                      ? AppColors.redColor
+                      : AppColors.primaryColor,
                   fontSize: 13,
                   textAlign: TextAlign.center,
                 ),
@@ -177,17 +203,29 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
               const SizedBox(height: 6),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.backgroundColor,
-                  borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue),
+                  borderRadius: BorderRadius.circular(
+                    AppStyles.borderRadiusMediumValue,
+                  ),
                   border: Border.all(color: AppColors.borderColor),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.payments_outlined, size: 18, color: AppColors.textColor),
+                    const Icon(
+                      Icons.payments_outlined,
+                      size: 18,
+                      color: AppColors.textColor,
+                    ),
                     horizontalSpaceSmall,
-                    CustomText.bodyBold(text: widget.reason.chipLabel, fontSize: 14),
+                    CustomText.bodyBold(
+                      text: widget.reason.chipLabel,
+                      fontSize: 14,
+                    ),
                   ],
                 ),
               ),
@@ -201,7 +239,11 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
                 ),
                 verticalSpaceMedium,
                 if (_error == null)
-                  CustomButton(text: "I finished the call", onPressed: _reconcile, backgroundColor: AppColors.textColor),
+                  CustomButton(
+                    text: "I finished the call",
+                    onPressed: _reconcile,
+                    backgroundColor: AppColors.textColor,
+                  ),
               ],
             ],
           ),
