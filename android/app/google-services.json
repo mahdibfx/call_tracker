@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "28904530449",
+    "project_id": "calltracker-b3aca",
+    "storage_bucket": "calltracker-b3aca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:28904530449:android:8089a02ba72df5d14407b0",
+        "android_client_info": {
+          "package_name": "com.example.call_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOWuhN3ZIqAThQ6ErSfJ4ORNDLbbu8YEQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
