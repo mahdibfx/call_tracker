@@ -34,6 +34,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   bool _launching = true;
   bool _wasBackgrounded = false;
   bool _resolved = false;
+  bool _sawCallStart = false;
   String? _error;
 
   @override
@@ -79,7 +80,17 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     _sub = PhoneState.stream.listen((state) {
       if (!mounted) return;
       setState(() => _status = state.status);
-      if (state.status == PhoneStateStatus.CALL_ENDED) _reconcile();
+      if (state.status == PhoneStateStatus.CALL_STARTED) {
+        // The call is genuinely active — only NOW can a later CALL_ENDED be trusted.
+        _sawCallStart = true;
+      } else if (state.status == PhoneStateStatus.CALL_ENDED && _sawCallStart) {
+        _reconcile();
+      }
+      // Note: the stream's very first event on subscription is a snapshot of
+      // whatever the telephony state already was — right after placeCall()
+      // that's still almost always IDLE (the call hasn't gone off-hook yet),
+      // which this package reports as CALL_ENDED. Ignoring CALL_ENDED until
+      // we've seen CALL_STARTED avoids reconciling before the call happened.
     });
   }
 
