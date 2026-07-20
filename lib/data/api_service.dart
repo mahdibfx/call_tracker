@@ -32,59 +32,71 @@ class ApiService {
 
   /// POST /auth/login — returns Agent on success, null on failure.
   static Future<Agent?> login(String email, String password) async {
-    final res = await http.post(
-      Uri.parse('$_baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
-    );
-    if (res.statusCode != 200) return null;
-    final json = jsonDecode(res.body) as Map<String, dynamic>;
-    await _saveToken(json['token'] as String);
-    final agentJson = json['agent'] as Map<String, dynamic>;
-    return Agent(
-      id: agentJson['id'].toString(),
-      name: agentJson['name'] as String,
-      email: agentJson['email'] as String,
-    );
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+      if (res.statusCode != 200) return null;
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      await _saveToken(json['token'] as String);
+      final agentJson = json['agent'] as Map<String, dynamic>;
+      return Agent(
+        id: agentJson['id'].toString(),
+        name: agentJson['name'] as String,
+        email: agentJson['email'] as String,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// GET /students
   static Future<List<Student>> getStudents() async {
-    final res = await http.get(
-      Uri.parse('$_baseUrl/students'),
-      headers: await _authHeaders(),
-    );
-    if (res.statusCode != 200) return [];
-    final list = jsonDecode(res.body) as List<dynamic>;
-    return list.map((e) {
-      final m = e as Map<String, dynamic>;
-      return Student(
-        id: m['id'].toString(),
-        name: m['name'] as String,
-        phone: m['phone'] as String,
-        level: m['level'] as String,
-        parentName: m['parentName'] as String,
-        studentId: m['studentId'] as String,
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/students'),
+        headers: await _authHeaders(),
       );
-    }).toList();
+      if (res.statusCode != 200) return [];
+      final list = jsonDecode(res.body) as List<dynamic>;
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        return Student(
+          id: m['id'].toString(),
+          name: m['name'] as String,
+          phone: m['phone'] as String,
+          level: m['level'] as String,
+          parentName: m['parentName'] as String,
+          studentId: m['studentId'] as String,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// GET /groups
   static Future<List<Group>> getGroups() async {
-    final res = await http.get(
-      Uri.parse('$_baseUrl/groups'),
-      headers: await _authHeaders(),
-    );
-    if (res.statusCode != 200) return [];
-    final list = jsonDecode(res.body) as List<dynamic>;
-    return list.map((e) {
-      final m = e as Map<String, dynamic>;
-      return Group(
-        name: m['name'] as String,
-        studentCount: m['studentCount'] as int,
-        studentIds: (m['studentIds'] as List<dynamic>).map((id) => id.toString()).toList(),
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/groups'),
+        headers: await _authHeaders(),
       );
-    }).toList();
+      if (res.statusCode != 200) return [];
+      final list = jsonDecode(res.body) as List<dynamic>;
+      return list.map((e) {
+        final m = e as Map<String, dynamic>;
+        return Group(
+          name: m['name'] as String,
+          studentCount: m['studentCount'] as int,
+          studentIds: (m['studentIds'] as List<dynamic>).map((id) => id.toString()).toList(),
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// POST /calls
