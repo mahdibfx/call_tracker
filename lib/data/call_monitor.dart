@@ -54,10 +54,26 @@ class CallMonitor {
     await prefs.remove(_prefsKey);
   }
 
+  // ponytail: real-world ring/setup timing, in three bands, tunable if real-device
+  // testing shows false positives/negatives:
+  //  - under earlyHangupThresholdSeconds: dial setup alone takes this long, so the
+  //    call couldn't possibly have rung yet — confidently "hung up before it rang".
+  //  - under quickEndThresholdSeconds: might have rung once briefly — genuinely
+  //    ambiguous between a fast decline and an early hangup, can't tell which
+  //    without becoming the device's default dialer (see DisconnectCause discussion).
+  //  - at or above quickEndThresholdSeconds: multiple ring cycles elapsed —
+  //    a genuine unanswered/ring-out call.
+  static const earlyHangupThresholdSeconds = 3;
+  static const quickEndThresholdSeconds = 8;
+
   /// Cross-checks [call] against the device's call log and clears it from
   /// the pending store. This is the only source of truth for what really
   /// happened on the line — not anything the app itself observed.
-  static Future<CallVerification> reconcile(PendingCall call) async {
+  ///
+  /// [ringSessionSeconds] is how long the device was locally observed to be
+  /// in an active call session (dial to hang-up, via phone_state) — pass it
+  /// when available to distinguish a genuine no-answer from an early hangup.
+  static Future<CallVerification> reconcile(PendingCall call, {int? ringSessionSeconds}) async {
     final since = DateTime.fromMillisecondsSinceEpoch(call.startedAtEpochMs);
     final result = await NativeCallService.queryCallSince(call.number, since);
     await clearPending();
@@ -73,11 +89,34 @@ class CallMonitor {
 
     final duration = result.durationSeconds ?? 0;
     if (duration <= 0) {
-      return const CallVerification(
+      if (ringSessionSeconds != null && ringSessionSeconds < earlyHangupThresholdSeconds) {
+        return CallVerification(
+          reallyDialed: true,
+          talkDurationSeconds: 0,
+          suspicious: true,
+          likelyHungUpEarly: true,
+          ringSessionSeconds: ringSessionSeconds,
+          note: 'Call was ended after only ${ringSessionSeconds}s — too quick to have actually rung, likely hung up immediately.',
+        );
+      }
+      if (ringSessionSeconds != null && ringSessionSeconds < quickEndThresholdSeconds) {
+        return CallVerification(
+          reallyDialed: true,
+          talkDurationSeconds: 0,
+          suspicious: true,
+          endedQuickly: true,
+          ringSessionSeconds: ringSessionSeconds,
+          note: "Call ended quickly after ${ringSessionSeconds}s — could be a decline or an early hangup, can't tell which.",
+        );
+      }
+      return CallVerification(
         reallyDialed: true,
         talkDurationSeconds: 0,
         suspicious: true,
-        note: 'Call was placed but never answered (0s talk time).',
+        ringSessionSeconds: ringSessionSeconds,
+        note: ringSessionSeconds != null
+            ? 'Call rang for ${ringSessionSeconds}s but was not answered.'
+            : 'Call was placed but never answered (0s talk time).',
       );
     }
 

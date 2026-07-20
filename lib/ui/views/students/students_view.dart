@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:call_tracker/data/dummy_data.dart';
+import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
@@ -21,9 +21,26 @@ class _StudentsViewState extends State<StudentsView> {
   static const _levels = ['All Levels', 'A1', 'A2', 'B1', 'B2'];
   String _selectedLevel = 'All Levels';
   String _query = '';
+  List<Student> _students = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    final students = await ApiService.getStudents();
+    if (!mounted) return;
+    setState(() {
+      _students = students;
+      _loading = false;
+    });
+  }
 
   List<Student> get _filtered {
-    return dummyStudents.where((s) {
+    return _students.where((s) {
       final matchesLevel = _selectedLevel == 'All Levels' || s.level == _selectedLevel;
       final matchesQuery = _query.isEmpty ||
           s.name.toLowerCase().contains(_query.toLowerCase()) ||
@@ -83,7 +100,9 @@ class _StudentsViewState extends State<StudentsView> {
           ),
           verticalSpaceMedium,
           Expanded(
-            child: ListView.separated(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: _filtered.length,
               separatorBuilder: (_, _) => verticalSpaceSmall,

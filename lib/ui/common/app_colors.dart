@@ -18,6 +18,8 @@ class AppColors {
   static Color greenColorLight = greenColor.withValues(alpha: .15);
   static const Color redColor = Color(0xFFE0473A);
   static Color redColorLight = redColor.withValues(alpha: .12);
+  static const Color amberColor = Color(0xFFC98A1F);
+  static Color amberColorLight = amberColor.withValues(alpha: .15);
 
   // Avatar background palette (cycled by name hash)
   static const List<Color> avatarPalette = [

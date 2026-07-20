@@ -59,6 +59,14 @@ const List<Student> dummyStudents = [
   ),
 ];
 
+// ponytail: local stand-in for POST /api/auth/login until the backend exists —
+// see docs/api-requirements.md. Swap AuthService.login's body for the real call
+// once it's ready; nothing else (session storage, currentAgent, logout) needs to change.
+const List<({Agent agent, String password})> dummyAgents = [
+  (agent: Agent(id: 'a1', name: 'Sara Amrani', email: 'sara.amrani@institute.dz'), password: 'agent123'),
+  (agent: Agent(id: 'a2', name: 'Karim Belaid', email: 'karim.belaid@institute.dz'), password: 'agent123'),
+];
+
 const List<Group> dummyGroups = [
   Group(name: 'Ramzi C1', studentCount: 24, studentIds: ['1', '2']),
   Group(name: 'Karim A2', studentCount: 45, studentIds: ['2', '6']),

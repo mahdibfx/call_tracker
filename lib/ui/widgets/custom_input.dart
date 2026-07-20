@@ -9,6 +9,10 @@ class CustomInput extends StatelessWidget {
     this.controller,
     this.onChanged,
     this.prefixIcon,
+    this.suffixIcon,
+    this.onSuffixTap,
+    this.obscureText = false,
+    this.keyboardType,
     this.maxLines = 1,
     this.minLines,
   });
@@ -17,6 +21,10 @@ class CustomInput extends StatelessWidget {
   final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
   final IconData? prefixIcon;
+  final IconData? suffixIcon;
+  final VoidCallback? onSuffixTap;
+  final bool obscureText;
+  final TextInputType? keyboardType;
   final int? maxLines;
   final int? minLines;
 
@@ -25,7 +33,9 @@ class CustomInput extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      maxLines: maxLines,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      maxLines: obscureText ? 1 : maxLines,
       minLines: minLines,
       style: const TextStyle(fontSize: 14, color: AppColors.textColor),
       decoration: InputDecoration(
@@ -34,6 +44,12 @@ class CustomInput extends StatelessWidget {
         hintText: hintText,
         hintStyle: const TextStyle(color: AppColors.secondaryColor, fontSize: 14),
         prefixIcon: prefixIcon != null ? Icon(prefixIcon, color: AppColors.secondaryColor, size: 20) : null,
+        suffixIcon: suffixIcon != null
+            ? IconButton(
+                icon: Icon(suffixIcon, color: AppColors.secondaryColor, size: 20),
+                onPressed: onSuffixTap,
+              )
+            : null,
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue),

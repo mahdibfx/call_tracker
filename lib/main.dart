@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:call_tracker/data/auth_service.dart';
+import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
+import 'package:call_tracker/ui/views/login/login_view.dart';
 import 'package:call_tracker/ui/views/root/root_view.dart';
 
 void main() {
@@ -19,7 +22,35 @@ class MainApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryColor),
         fontFamily: 'Roboto',
       ),
-      home: const RootView(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+/// Shows the login screen until an agent session exists, then the app.
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final Future<Agent?> _agent = AuthService.currentAgent();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _agent,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            backgroundColor: AppColors.backgroundColor,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return snapshot.data != null ? const RootView() : const LoginView();
+      },
     );
   }
 }

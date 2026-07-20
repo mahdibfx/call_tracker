@@ -93,12 +93,14 @@ class _CallRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flagged = record.isFlagged;
+    final needsReview = record.needsReview;
+    final accent = flagged ? AppColors.redColor : (needsReview ? AppColors.amberColor : null);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.cardColor,
         borderRadius: BorderRadius.circular(AppStyles.borderRadiusLargeValue),
-        border: Border.all(color: flagged ? AppColors.redColor.withValues(alpha: .4) : AppColors.borderColor),
+        border: Border.all(color: accent?.withValues(alpha: .4) ?? AppColors.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -108,18 +110,20 @@ class _CallRecordTile extends StatelessWidget {
             children: [
               Expanded(child: CustomText.bodyBold(text: record.studentName, fontSize: 15)),
               Icon(
-                flagged ? Icons.flag : Icons.check_circle,
+                flagged ? Icons.flag : (needsReview ? Icons.help_outline : Icons.check_circle),
                 size: 16,
-                color: flagged ? AppColors.redColor : AppColors.greenColor,
+                color: accent ?? AppColors.greenColor,
               ),
             ],
           ),
           const SizedBox(height: 2),
-          CustomText.caption(text: '${record.reason.label} • agent said: ${record.outcome?.label ?? 'no outcome'}'),
+          CustomText.caption(
+            text: '${record.agentName ?? 'Unknown agent'} • ${record.reason.label} • agent said: ${record.outcome?.label ?? 'no outcome'}',
+          ),
           const SizedBox(height: 6),
           CustomText.body(
             text: record.verdictLabel,
-            textColor: flagged ? AppColors.redColor : AppColors.textColor,
+            textColor: accent ?? AppColors.textColor,
             fontSize: 13,
           ),
         ],

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:call_tracker/data/api_service.dart';
+import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
@@ -62,15 +64,36 @@ class _CallSummaryViewState extends State<CallSummaryView> {
   }
 
   Future<void> _finish() async {
-    await CallHistoryStore.add(CallRecord(
+    final agent = await AuthService.currentAgent();
+    final record = CallRecord(
       studentId: widget.student.id,
       studentName: widget.student.name,
       reason: widget.reason,
       outcome: _selectedOutcome,
+      agentId: agent?.id,
+      agentName: agent?.name,
+      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       reallyDialed: widget.verification?.reallyDialed ?? true,
       talkDurationSeconds: widget.durationSeconds,
       timestampEpochMs: DateTime.now().millisecondsSinceEpoch,
-    ));
+      likelyHungUpEarly: widget.verification?.likelyHungUpEarly ?? false,
+      endedQuickly: widget.verification?.endedQuickly ?? false,
+      ringSessionSeconds: widget.verification?.ringSessionSeconds,
+    );
+    await Future.wait([
+      CallHistoryStore.add(record),
+      ApiService.submitCall(
+        studentId: widget.student.id,
+        studentName: widget.student.name,
+        reason: widget.reason.label,
+        outcome: _selectedOutcome?.label ?? '',
+        notes: record.notes,
+        reallyDialed: record.reallyDialed,
+        talkDurationSeconds: record.talkDurationSeconds,
+        ringSessionCount: 1,
+        isFinal: true,
+      ),
+    ]);
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }

@@ -35,6 +35,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   bool _wasBackgrounded = false;
   bool _resolved = false;
   bool _sawCallStart = false;
+  DateTime? _callStartedAt;
   String? _error;
 
   @override
@@ -83,6 +84,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
       if (state.status == PhoneStateStatus.CALL_STARTED) {
         // The call is genuinely active — only NOW can a later CALL_ENDED be trusted.
         _sawCallStart = true;
+        _callStartedAt ??= DateTime.now();
       } else if (state.status == PhoneStateStatus.CALL_ENDED && _sawCallStart) {
         _reconcile();
       }
@@ -111,7 +113,9 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     _resolved = true;
     // give the OS a moment to write the call-log entry before we read it
     await Future.delayed(const Duration(seconds: 1));
-    final verification = await CallMonitor.reconcile(pending);
+    final callStartedAt = _callStartedAt;
+    final ringSessionSeconds = callStartedAt != null ? DateTime.now().difference(callStartedAt).inSeconds : null;
+    final verification = await CallMonitor.reconcile(pending, ringSessionSeconds: ringSessionSeconds);
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(

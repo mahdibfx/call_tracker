@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:call_tracker/data/dummy_data.dart';
+import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
@@ -20,8 +20,27 @@ class GroupsView extends StatefulWidget {
 class _GroupsViewState extends State<GroupsView> {
   String _query = '';
   String? _expandedGroup;
+  List<Group> _groups = [];
+  List<Student> _students = [];
+  bool _loading = true;
 
-  List<Group> get _filtered => dummyGroups.where((g) => g.name.toLowerCase().contains(_query.toLowerCase())).toList();
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final results = await Future.wait([ApiService.getGroups(), ApiService.getStudents()]);
+    if (!mounted) return;
+    setState(() {
+      _groups = results[0] as List<Group>;
+      _students = results[1] as List<Student>;
+      _loading = false;
+    });
+  }
+
+  List<Group> get _filtered => _groups.where((g) => g.name.toLowerCase().contains(_query.toLowerCase())).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +55,9 @@ class _GroupsViewState extends State<GroupsView> {
           ),
           verticalSpaceMedium,
           Expanded(
-            child: ListView.separated(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: _filtered.length,
               separatorBuilder: (_, _) => verticalSpaceSmall,
@@ -45,6 +66,7 @@ class _GroupsViewState extends State<GroupsView> {
                 final expanded = _expandedGroup == group.name;
                 return _GroupCard(
                   group: group,
+                  students: _students,
                   expanded: expanded,
                   onTap: () => setState(() => _expandedGroup = expanded ? null : group.name),
                 );
@@ -58,15 +80,16 @@ class _GroupsViewState extends State<GroupsView> {
 }
 
 class _GroupCard extends StatelessWidget {
-  const _GroupCard({required this.group, required this.expanded, required this.onTap});
+  const _GroupCard({required this.group, required this.students, required this.expanded, required this.onTap});
 
   final Group group;
+  final List<Student> students;
   final bool expanded;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final students = dummyStudents.where((s) => group.studentIds.contains(s.id)).toList();
+    final groupStudents = students.where((s) => group.studentIds.contains(s.id)).toList();
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardColor,
@@ -110,7 +133,7 @@ class _GroupCard extends StatelessWidget {
                 children: [
                   const Divider(height: 1, color: AppColors.borderColor),
                   verticalSpaceSmall,
-                  ...students.map((s) => Padding(
+                  ...groupStudents.map((s) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: InkWell(
                           onTap: () => Navigator.of(context).push(
