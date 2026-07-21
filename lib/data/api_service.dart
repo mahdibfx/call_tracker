@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/models.dart';
@@ -91,7 +92,9 @@ class ApiService {
         return Group(
           name: m['name'] as String,
           studentCount: m['studentCount'] as int,
-          studentIds: (m['studentIds'] as List<dynamic>).map((id) => id.toString()).toList(),
+          studentIds: (m['studentIds'] as List<dynamic>)
+              .map((id) => id.toString())
+              .toList(),
         );
       }).toList();
     } catch (_) {
@@ -126,6 +129,7 @@ class ApiService {
         'isFinal': isFinal,
       }),
     );
+
     if (res.statusCode != 201) return null;
     return jsonDecode(res.body) as Map<String, dynamic>;
   }

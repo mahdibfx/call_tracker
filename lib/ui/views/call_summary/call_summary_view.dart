@@ -9,6 +9,8 @@ import 'package:call_tracker/ui/common/ui_helpers.dart';
 import 'package:call_tracker/ui/widgets/custom_button.dart';
 import 'package:call_tracker/ui/widgets/custom_input.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class CallSummaryView extends StatefulWidget {
   const CallSummaryView({
@@ -58,8 +60,10 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     if (verification == null) {
       return 'Parent hung up after ${widget.durationSeconds ~/ 60} minutes.';
     }
-    if (!verification.reallyDialed) return 'No call was detected for this number.';
-    if (verification.talkDurationSeconds <= 0) return 'The call was not answered.';
+    if (!verification.reallyDialed)
+      return 'No call was detected for this number.';
+    if (verification.talkDurationSeconds <= 0)
+      return 'The call was not answered.';
     return 'Call lasted $_formattedDuration.';
   }
 
@@ -72,7 +76,9 @@ class _CallSummaryViewState extends State<CallSummaryView> {
       outcome: _selectedOutcome,
       agentId: agent?.id,
       agentName: agent?.name,
-      notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      notes: _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim(),
       reallyDialed: widget.verification?.reallyDialed ?? true,
       talkDurationSeconds: widget.durationSeconds,
       timestampEpochMs: DateTime.now().millisecondsSinceEpoch,
@@ -80,20 +86,29 @@ class _CallSummaryViewState extends State<CallSummaryView> {
       endedQuickly: widget.verification?.endedQuickly ?? false,
       ringSessionSeconds: widget.verification?.ringSessionSeconds,
     );
-    await Future.wait([
-      CallHistoryStore.add(record),
-      ApiService.submitCall(
-        studentId: widget.student.id,
-        studentName: widget.student.name,
-        reason: widget.reason.label,
-        outcome: _selectedOutcome?.label ?? '',
-        notes: record.notes,
-        reallyDialed: record.reallyDialed,
-        talkDurationSeconds: record.talkDurationSeconds,
-        ringSessionCount: 1,
-        isFinal: true,
-      ),
-    ]);
+    await Future.wait([CallHistoryStore.add(record)]);
+    final result = await ApiService.submitCall(
+      studentId: widget.student.id,
+      studentName: widget.student.name,
+      reason: widget.reason.label,
+      outcome: _selectedOutcome?.label ?? '',
+      notes: record.notes,
+      reallyDialed: record.reallyDialed,
+      talkDurationSeconds: record.talkDurationSeconds,
+      ringSessionCount: 1,
+      isFinal: true,
+    );
+
+    if (result != null) {
+      if (mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.success(
+            message: "Call submitted successfully for ${widget.student.name}.",
+          ),
+        );
+      }
+    }
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
@@ -107,7 +122,10 @@ class _CallSummaryViewState extends State<CallSummaryView> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        leading: IconButton(icon: const Icon(Icons.close, color: AppColors.textColor), onPressed: _finish),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppColors.textColor),
+          onPressed: _finish,
+        ),
         title: CustomText.title(text: 'Call Summary', fontSize: 18),
       ),
       body: ListView(
@@ -117,9 +135,18 @@ class _CallSummaryViewState extends State<CallSummaryView> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.cardColor,
-              borderRadius: BorderRadius.circular(AppStyles.borderRadiusLargeValue),
+              borderRadius: BorderRadius.circular(
+                AppStyles.borderRadiusLargeValue,
+              ),
               border: Border.all(color: AppColors.borderColor),
-              boxShadow: [BoxShadow(color: AppColors.greenColor.withValues(alpha: .4), offset: const Offset(0, -3), blurRadius: 0, spreadRadius: -2)],
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.greenColor.withValues(alpha: .4),
+                  offset: const Offset(0, -3),
+                  blurRadius: 0,
+                  spreadRadius: -2,
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,22 +155,38 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.greenColorLight, shape: BoxShape.circle),
-                      child: const Icon(Icons.check, color: AppColors.greenColor, size: 20),
+                      decoration: BoxDecoration(
+                        color: AppColors.greenColorLight,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: AppColors.greenColor,
+                        size: 20,
+                      ),
                     ),
                     horizontalSpaceSmall,
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CustomText.bodyBold(text: widget.student.name, fontSize: 16),
-                          CustomText.subtitle(text: 'Parent: ${widget.student.parentName}'),
+                          CustomText.bodyBold(
+                            text: widget.student.name,
+                            fontSize: 16,
+                          ),
+                          CustomText.subtitle(
+                            text: 'Parent: ${widget.student.parentName}',
+                          ),
                         ],
                       ),
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 14, color: AppColors.secondaryColor),
+                        const Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: AppColors.secondaryColor,
+                        ),
                         horizontalSpaceTiny,
                         CustomText.caption(text: _formattedDuration),
                       ],
@@ -154,7 +197,12 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.backgroundColor, borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue)),
+                  decoration: BoxDecoration(
+                    color: AppColors.backgroundColor,
+                    borderRadius: BorderRadius.circular(
+                      AppStyles.borderRadiusMediumValue,
+                    ),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -163,9 +211,20 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                         children: [
                           CustomText.caption(text: 'STATUS'),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(color: AppColors.redColorLight, borderRadius: BorderRadius.circular(AppStyles.borderRadiusPillValue)),
-                            child: CustomText.caption(text: 'Call Ended', textColor: AppColors.redColor),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.redColorLight,
+                              borderRadius: BorderRadius.circular(
+                                AppStyles.borderRadiusPillValue,
+                              ),
+                            ),
+                            child: CustomText.caption(
+                              text: 'Call Ended',
+                              textColor: AppColors.redColor,
+                            ),
                           ),
                         ],
                       ),
@@ -181,17 +240,26 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.redColorLight,
-                      borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue),
-                      border: Border.all(color: AppColors.redColor.withValues(alpha: .3)),
+                      borderRadius: BorderRadius.circular(
+                        AppStyles.borderRadiusMediumValue,
+                      ),
+                      border: Border.all(
+                        color: AppColors.redColor.withValues(alpha: .3),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.flag_outlined, color: AppColors.redColor, size: 18),
+                        const Icon(
+                          Icons.flag_outlined,
+                          color: AppColors.redColor,
+                          size: 18,
+                        ),
                         horizontalSpaceSmall,
                         Expanded(
                           child: CustomText.body(
-                            text: 'Flagged for review: ${widget.verification!.note}',
+                            text:
+                                'Flagged for review: ${widget.verification!.note}',
                             textColor: AppColors.redColor,
                             fontSize: 13,
                           ),
@@ -214,18 +282,25 @@ class _CallSummaryViewState extends State<CallSummaryView> {
             crossAxisSpacing: 10,
             childAspectRatio: 1.55,
             children: CallOutcome.values
-                .map((o) => _OutcomeCard(
-                      outcome: o,
-                      icon: _outcomeIcons[o]!,
-                      selected: _selectedOutcome == o,
-                      onTap: () => setState(() => _selectedOutcome = o),
-                    ))
+                .map(
+                  (o) => _OutcomeCard(
+                    outcome: o,
+                    icon: _outcomeIcons[o]!,
+                    selected: _selectedOutcome == o,
+                    onTap: () => setState(() => _selectedOutcome = o),
+                  ),
+                )
                 .toList(),
           ),
           verticalSpaceMedium,
           CustomText.bodyBold(text: 'Internal Notes', fontSize: 16),
           verticalSpaceSmall,
-          CustomInput(hintText: 'Add specific notes about the conversation...', controller: _notesController, maxLines: 4, minLines: 4),
+          CustomInput(
+            hintText: 'Add specific notes about the conversation...',
+            controller: _notesController,
+            maxLines: 4,
+            minLines: 4,
+          ),
           verticalSpaceMedium,
           CustomButton(text: 'Save and Finish', onPressed: _finish),
         ],
@@ -235,7 +310,12 @@ class _CallSummaryViewState extends State<CallSummaryView> {
 }
 
 class _OutcomeCard extends StatelessWidget {
-  const _OutcomeCard({required this.outcome, required this.icon, required this.selected, required this.onTap});
+  const _OutcomeCard({
+    required this.outcome,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
 
   final CallOutcome outcome;
   final IconData icon;
@@ -251,15 +331,31 @@ class _OutcomeCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryColorLight : AppColors.cardColor,
-          borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue),
-          border: Border.all(color: selected ? AppColors.primaryColor : AppColors.borderColor, width: selected ? 1.5 : 1),
+          borderRadius: BorderRadius.circular(
+            AppStyles.borderRadiusMediumValue,
+          ),
+          border: Border.all(
+            color: selected ? AppColors.primaryColor : AppColors.borderColor,
+            width: selected ? 1.5 : 1,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: selected ? AppColors.primaryColor : AppColors.textColor, size: 22),
+            Icon(
+              icon,
+              color: selected ? AppColors.primaryColor : AppColors.textColor,
+              size: 22,
+            ),
             const SizedBox(height: 6),
-            CustomText.bodyBold(text: outcome.label, fontSize: 13, textAlign: TextAlign.center, textColor: selected ? AppColors.primaryColor : AppColors.textColor),
+            CustomText.bodyBold(
+              text: outcome.label,
+              fontSize: 13,
+              textAlign: TextAlign.center,
+              textColor: selected
+                  ? AppColors.primaryColor
+                  : AppColors.textColor,
+            ),
           ],
         ),
       ),
