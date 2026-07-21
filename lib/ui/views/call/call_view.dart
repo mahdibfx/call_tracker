@@ -114,8 +114,13 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     // give the OS a moment to write the call-log entry before we read it
     await Future.delayed(const Duration(seconds: 1));
     final callStartedAt = _callStartedAt;
-    final ringSessionSeconds = callStartedAt != null ? DateTime.now().difference(callStartedAt).inSeconds : null;
-    final verification = await CallMonitor.reconcile(pending, ringSessionSeconds: ringSessionSeconds);
+    final ringSessionSeconds = callStartedAt != null
+        ? DateTime.now().difference(callStartedAt).inSeconds
+        : null;
+    final verification = await CallMonitor.reconcile(
+      pending,
+      ringSessionSeconds: ringSessionSeconds,
+    );
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(

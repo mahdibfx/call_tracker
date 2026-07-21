@@ -4,8 +4,13 @@ import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/views/login/login_view.dart';
 import 'package:call_tracker/ui/views/root/root_view.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Permission.phone.request();
+
   runApp(const MainApp());
 }
 
