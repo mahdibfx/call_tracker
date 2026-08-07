@@ -85,7 +85,17 @@ class CallMonitor {
   /// when available to distinguish a genuine no-answer from an early hangup.
   static Future<CallVerification> reconcile(PendingCall call, {int? ringSessionSeconds}) async {
     final since = DateTime.fromMillisecondsSinceEpoch(call.startedAtEpochMs);
-    final result = await NativeCallService.queryCallSince(call.number, since);
+
+    // ponytail: some OEMs (Infinix, Tecno) flush the call log late after
+    // answered/long-ringing calls. Retry up to 3 times with increasing delay.
+    CallLogResult result = await NativeCallService.queryCallSince(call.number, since);
+    if (!result.found) {
+      for (final delay in [3, 5, 8]) {
+        await Future.delayed(Duration(seconds: delay));
+        result = await NativeCallService.queryCallSince(call.number, since);
+        if (result.found) break;
+      }
+    }
     await clearPending();
 
     if (!result.found) {
