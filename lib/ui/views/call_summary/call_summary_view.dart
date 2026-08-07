@@ -60,10 +60,12 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     if (verification == null) {
       return 'Parent hung up after ${widget.durationSeconds ~/ 60} minutes.';
     }
-    if (!verification.reallyDialed)
+    if (!verification.reallyDialed) {
       return 'No call was detected for this number.';
-    if (verification.talkDurationSeconds <= 0)
+    }
+    if (verification.talkDurationSeconds <= 0) {
       return 'The call was not answered.';
+    }
     return 'Call lasted $_formattedDuration.';
   }
 
@@ -88,14 +90,17 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     );
     await Future.wait([CallHistoryStore.add(record)]);
     final result = await ApiService.submitCall(
-      studentId: widget.student.id,
-      studentName: widget.student.name,
+      studentId: record.studentId,
+      studentName: record.studentName,
       reason: widget.reason.label,
       outcome: _selectedOutcome?.label ?? '',
       notes: record.notes,
       reallyDialed: record.reallyDialed,
       talkDurationSeconds: record.talkDurationSeconds,
-      ringSessionCount: 1,
+      ringSessionSeconds: record.ringSessionSeconds,
+      likelyHungUpEarly: record.likelyHungUpEarly,
+      endedQuickly: record.endedQuickly,
+      finalResult: record.finalResult,
       isFinal: true,
     );
 

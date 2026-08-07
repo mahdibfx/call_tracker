@@ -59,6 +59,8 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     await CallMonitor.savePending(
       PendingCall(
         studentId: widget.student.id,
+        studentName: widget.student.name,
+        parentName: widget.student.parentName,
         number: widget.student.phone,
         startedAtEpochMs: startedAt.millisecondsSinceEpoch,
         reason: widget.reason,
@@ -111,8 +113,8 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     final pending = await CallMonitor.readPending();
     if (pending == null) return;
     _resolved = true;
-    // give the OS a moment to write the call-log entry before we read it
-    await Future.delayed(const Duration(seconds: 1));
+    // ponytail: 3s — some OEMs (Infinix, Tecno) are slow to flush the call log
+    await Future.delayed(const Duration(seconds: 3));
     final callStartedAt = _callStartedAt;
     final ringSessionSeconds = callStartedAt != null
         ? DateTime.now().difference(callStartedAt).inSeconds

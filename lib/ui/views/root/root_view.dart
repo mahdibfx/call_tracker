@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_monitor.dart';
-import 'package:call_tracker/data/dummy_data.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/views/call_summary/call_summary_view.dart';
 import 'package:call_tracker/ui/views/dashboard/dashboard_view.dart';

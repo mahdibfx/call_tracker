@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/models.dart';
@@ -111,7 +110,10 @@ class ApiService {
     String? notes,
     required bool reallyDialed,
     required int talkDurationSeconds,
-    required int ringSessionCount,
+    int? ringSessionSeconds,
+    required bool likelyHungUpEarly,
+    required bool endedQuickly,
+    required String finalResult,
     required bool isFinal,
   }) async {
     final res = await http.post(
@@ -125,7 +127,10 @@ class ApiService {
         'notes': notes,
         'reallyDialed': reallyDialed,
         'talkDurationSeconds': talkDurationSeconds,
-        'ringSessionCount': ringSessionCount,
+        'ringSessionSeconds': ringSessionSeconds,
+        'likelyHungUpEarly': likelyHungUpEarly,
+        'endedQuickly': endedQuickly,
+        'finalResult': finalResult,
         'isFinal': isFinal,
       }),
     );

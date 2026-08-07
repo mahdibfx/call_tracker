@@ -9,18 +9,24 @@ import 'package:call_tracker/data/native_call_service.dart';
 class PendingCall {
   const PendingCall({
     required this.studentId,
+    required this.studentName,
+    required this.parentName,
     required this.number,
     required this.startedAtEpochMs,
     required this.reason,
   });
 
   final String studentId;
+  final String studentName;
+  final String parentName;
   final String number;
   final int startedAtEpochMs;
   final CallReason reason;
 
   Map<String, dynamic> toJson() => {
         'studentId': studentId,
+        'studentName': studentName,
+        'parentName': parentName,
         'number': number,
         'startedAtEpochMs': startedAtEpochMs,
         'reason': reason.name,
@@ -28,6 +34,8 @@ class PendingCall {
 
   factory PendingCall.fromJson(Map<String, dynamic> json) => PendingCall(
         studentId: json['studentId'] as String,
+        studentName: json['studentName'] as String? ?? '',
+        parentName: json['parentName'] as String? ?? '',
         number: json['number'] as String,
         startedAtEpochMs: json['startedAtEpochMs'] as int,
         reason: CallReason.values.byName(json['reason'] as String),
@@ -63,8 +71,10 @@ class CallMonitor {
   //    without becoming the device's default dialer (see DisconnectCause discussion).
   //  - at or above quickEndThresholdSeconds: multiple ring cycles elapsed —
   //    a genuine unanswered/ring-out call.
-  static const earlyHangupThresholdSeconds = 3;
-  static const quickEndThresholdSeconds = 8;
+  // ponytail: bumped from 3/8 — Infinix (and some Tecno/Samsung) dialers take
+  // 3-4s of setup before the call goes off-hook, inflating ringSessionSeconds.
+  static const earlyHangupThresholdSeconds = 6;
+  static const quickEndThresholdSeconds = 12;
 
   /// Cross-checks [call] against the device's call log and clears it from
   /// the pending store. This is the only source of truth for what really
