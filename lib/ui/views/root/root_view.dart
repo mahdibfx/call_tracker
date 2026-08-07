@@ -37,20 +37,20 @@ class _RootViewState extends State<RootView> {
   Future<void> _resumePendingCall() async {
     final pending = await CallMonitor.readPending();
     if (pending == null) return;
-    Student? student;
-    for (final s in dummyStudents) {
-      if (s.id == pending.studentId) {
-        student = s;
-        break;
-      }
-    }
     final verification = await CallMonitor.reconcile(pending);
-    final resolvedStudent = student;
-    if (resolvedStudent == null || !mounted) return;
+    if (!mounted) return;
+    final student = Student(
+      id: pending.studentId,
+      name: pending.studentName,
+      phone: pending.number,
+      level: '',
+      parentName: pending.parentName,
+      studentId: '',
+    );
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CallSummaryView(
-          student: resolvedStudent,
+          student: student,
           reason: pending.reason,
           durationSeconds: verification.talkDurationSeconds,
           verification: verification,
