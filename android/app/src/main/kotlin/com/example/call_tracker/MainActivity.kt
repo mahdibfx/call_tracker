@@ -1,10 +1,12 @@
 package com.example.call_tracker
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.CallLog
+import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -18,6 +20,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
             when (call.method) {
                 "placeCall" -> placeCall(call.argument<String>("number"), result)
+                "isCallActive" -> isCallActive(result)
                 "queryCallSince" -> queryCallSince(
                     call.argument<String>("number"),
                     call.argument<Long>("sinceEpochMs") ?: 0L,
@@ -45,6 +48,20 @@ class MainActivity : FlutterActivity() {
             result.success(true)
         } catch (e: Exception) {
             result.error("CALL_FAILED", e.message, null)
+        }
+    }
+
+    /// True while the device is ringing or off-hook. Android only writes the
+    /// CallLog entry when a call disconnects, so reconciling before this goes
+    /// false always looks like "no call was ever placed".
+    private fun isCallActive(result: MethodChannel.Result) {
+        try {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            @Suppress("DEPRECATION")
+            result.success(tm.callState != TelephonyManager.CALL_STATE_IDLE)
+        } catch (e: SecurityException) {
+            // No READ_PHONE_STATE — report idle rather than blocking reconcile forever.
+            result.success(false)
         }
     }
 

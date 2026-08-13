@@ -34,6 +34,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   bool _launching = true;
   bool _wasBackgrounded = false;
   bool _resolved = false;
+  bool _reconciling = false;
   bool _sawCallStart = false;
   DateTime? _callStartedAt;
   String? _error;
@@ -113,15 +114,12 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     final pending = await CallMonitor.readPending();
     if (pending == null) return;
     _resolved = true;
-    // ponytail: 3s — some OEMs (Infinix, Tecno) are slow to flush the call log
-    await Future.delayed(const Duration(seconds: 3));
-    final callStartedAt = _callStartedAt;
-    final ringSessionSeconds = callStartedAt != null
-        ? DateTime.now().difference(callStartedAt).inSeconds
-        : null;
+    // reconcile() waits out the live call itself — the CallLog row it reads
+    // does not exist until the call disconnects.
+    if (mounted) setState(() => _reconciling = true);
     final verification = await CallMonitor.reconcile(
       pending,
-      ringSessionSeconds: ringSessionSeconds,
+      callStartedAt: _callStartedAt,
     );
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -146,6 +144,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   String get _statusText {
     if (_launching) return 'Opening phone dialer...';
     if (_error != null) return _error!;
+    if (_reconciling) return 'Checking the call log — stay here until the call ends';
     return switch (_status) {
       PhoneStateStatus.CALL_STARTED =>
         'Call in progress — switch to the Phone app',

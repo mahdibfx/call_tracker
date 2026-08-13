@@ -80,17 +80,49 @@ class CallMonitor {
   /// the pending store. This is the only source of truth for what really
   /// happened on the line — not anything the app itself observed.
   ///
-  /// [ringSessionSeconds] is how long the device was locally observed to be
-  /// in an active call session (dial to hang-up, via phone_state) — pass it
-  /// when available to distinguish a genuine no-answer from an early hangup.
-  static Future<CallVerification> reconcile(PendingCall call, {int? ringSessionSeconds}) async {
+  /// How long to wait for the dialer to actually go off-hook after the intent
+  /// fires. Infinix/Tecno dialers take 3-4s; 12s is slack on top of that.
+  static const _dialGraceSeconds = 12;
+
+  /// Upper bound on a single call, so a missed CALL_ENDED can't hang reconcile.
+  static const _maxCallMinutes = 60;
+
+  /// Blocks until the device's telephony state is idle, so the CallLog entry
+  /// (written only on disconnect) actually exists by the time we read it.
+  /// Returns how long the call was observed active, or null if it never started.
+  static Future<int?> _awaitCallEnd() async {
+    var waited = 0;
+    while (!await NativeCallService.isCallActive()) {
+      if (waited >= _dialGraceSeconds) return null; // never went off-hook
+      await Future.delayed(const Duration(seconds: 1));
+      waited++;
+    }
+    final activeSince = DateTime.now();
+    for (var i = 0; i < _maxCallMinutes * 60; i++) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!await NativeCallService.isCallActive()) break;
+    }
+    return DateTime.now().difference(activeSince).inSeconds;
+  }
+
+  /// [callStartedAt] is when phone_state observed the call go active, if it did.
+  /// Ignored when the telephony state itself gives a better measurement.
+  static Future<CallVerification> reconcile(PendingCall call, {DateTime? callStartedAt}) async {
     final since = DateTime.fromMillisecondsSinceEpoch(call.startedAtEpochMs);
 
-    // ponytail: some OEMs (Infinix, Tecno) flush the call log late after
-    // answered/long-ringing calls. Retry up to 3 times with increasing delay.
+    // The CallLog row does not exist until the call disconnects — reading it
+    // mid-call is what produced false "no outgoing call detected" flags on
+    // answered and long-ringing calls. Wait the call out first.
+    final observedSeconds = await _awaitCallEnd();
+    final ringSessionSeconds = observedSeconds ??
+        (callStartedAt != null ? DateTime.now().difference(callStartedAt).inSeconds : null);
+
+    // Small settle window, then a couple of retries — the row is written at
+    // disconnect but not always synchronously.
+    await Future.delayed(const Duration(seconds: 2));
     CallLogResult result = await NativeCallService.queryCallSince(call.number, since);
     if (!result.found) {
-      for (final delay in [3, 5, 8]) {
+      for (final delay in [2, 3]) {
         await Future.delayed(Duration(seconds: delay));
         result = await NativeCallService.queryCallSince(call.number, since);
         if (result.found) break;

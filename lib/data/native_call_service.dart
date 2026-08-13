@@ -28,6 +28,19 @@ class NativeCallService {
     }
   }
 
+  /// True while the device is ringing or in a call. Android writes the call-log
+  /// entry only on disconnect, so this gates when reconciling is meaningful.
+  /// Defaults to false (idle) on any failure so reconcile can never hang.
+  static Future<bool> isCallActive() async {
+    try {
+      return await _channel.invokeMethod<bool>('isCallActive') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   static Future<CallLogResult> queryCallSince(
     String number,
     DateTime since,
