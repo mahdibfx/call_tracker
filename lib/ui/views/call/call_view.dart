@@ -144,7 +144,9 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
   String get _statusText {
     if (_launching) return 'Opening phone dialer...';
     if (_error != null) return _error!;
-    if (_reconciling) return 'Checking the call log — stay here until the call ends';
+    // Says nothing about the call log check happening behind it — the agent
+    // being checked must not know there is a check.
+    if (_reconciling) return 'Wrapping up — stay here until the call ends';
     return switch (_status) {
       PhoneStateStatus.CALL_STARTED =>
         'Call in progress — switch to the Phone app',
