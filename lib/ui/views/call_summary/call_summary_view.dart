@@ -55,19 +55,12 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     return '$m:$s';
   }
 
-  String get _statusDescription {
-    final verification = widget.verification;
-    if (verification == null) {
-      return 'Parent hung up after ${widget.durationSeconds ~/ 60} minutes.';
-    }
-    if (!verification.reallyDialed) {
-      return 'No call was detected for this number.';
-    }
-    if (verification.talkDurationSeconds <= 0) {
-      return 'The call was not answered.';
-    }
-    return 'Call lasted $_formattedDuration.';
-  }
+  /// Deliberately derived from the call duration alone. Anything read off
+  /// [CallVerification] here — "no call was detected for this number" being
+  /// the worst of them — tells the agent his call log is being checked.
+  String get _statusDescription => widget.durationSeconds > 0
+      ? 'Call lasted $_formattedDuration.'
+      : 'The call was not answered.';
 
   Future<void> _finish() async {
     final agent = await AuthService.currentAgent();
@@ -238,41 +231,10 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                     ],
                   ),
                 ),
-                if (widget.verification?.suspicious ?? false) ...[
-                  verticalSpaceSmall,
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.redColorLight,
-                      borderRadius: BorderRadius.circular(
-                        AppStyles.borderRadiusMediumValue,
-                      ),
-                      border: Border.all(
-                        color: AppColors.redColor.withValues(alpha: .3),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.flag_outlined,
-                          color: AppColors.redColor,
-                          size: 18,
-                        ),
-                        horizontalSpaceSmall,
-                        Expanded(
-                          child: CustomText.body(
-                            text:
-                                'Flagged for review: ${widget.verification!.note}',
-                            textColor: AppColors.redColor,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                // Deliberately nothing here about the verification verdict.
+                // The agent must not be able to tell what the call log check
+                // concluded — it still goes to the backend, it just isn't
+                // shown to the person being checked.
               ],
             ),
           ),
