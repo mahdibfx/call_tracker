@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -23,20 +24,38 @@ class _StudentsViewState extends State<StudentsView> {
   String _query = '';
   List<Student> _students = [];
   bool _loading = true;
+  bool _inFlight = false;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
     _loadStudents();
+    RefreshSignal.listenable.addListener(_loadStudents);
+  }
+
+  @override
+  void dispose() {
+    RefreshSignal.listenable.removeListener(_loadStudents);
+    super.dispose();
   }
 
   Future<void> _loadStudents() async {
-    final students = await ApiService.getStudents();
-    if (!mounted) return;
-    setState(() {
-      _students = students;
-      _loading = false;
-    });
+    if (_inFlight) return;
+    _inFlight = true;
+    try {
+      final students = await ApiService.getStudents();
+      if (!mounted) return;
+      setState(() {
+        // A failed fetch keeps whatever the list already had — losing the
+        // roster to one bad refresh would be worse than showing it stale.
+        if (students != null) _students = students;
+        _failed = students == null;
+        _loading = false;
+      });
+    } finally {
+      _inFlight = false;
+    }
   }
 
   List<Student> get _filtered {
@@ -100,25 +119,52 @@ class _StudentsViewState extends State<StudentsView> {
           ),
           verticalSpaceMedium,
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _filtered.length,
-              separatorBuilder: (_, _) => verticalSpaceSmall,
-              itemBuilder: (context, i) {
-                final student = _filtered[i];
-                return _StudentRow(
-                  student: student,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => StudentDetailView(student: student)),
-                  ),
-                );
-              },
+            child: RefreshIndicator(
+              onRefresh: _loadStudents,
+              color: AppColors.primaryColor,
+              child: _buildList(),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildList() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final students = _filtered;
+    if (students.isEmpty) {
+      // Still a ListView so the empty state can be pulled down to refresh.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+        children: [
+          Center(
+            child: CustomText.subtitle(
+              text: _students.isNotEmpty
+                  ? 'No students match your search.'
+                  : _failed
+                      ? "Couldn't load students — pull down to retry."
+                      : 'No students yet — pull down to refresh.',
+            ),
+          ),
+        ],
+      );
+    }
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: students.length,
+      separatorBuilder: (_, _) => verticalSpaceSmall,
+      itemBuilder: (context, i) {
+        final student = students[i];
+        return _StudentRow(
+          student: student,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => StudentDetailView(student: student)),
+          ),
+        );
+      },
     );
   }
 }

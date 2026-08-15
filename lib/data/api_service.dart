@@ -52,14 +52,15 @@ class ApiService {
     }
   }
 
-  /// GET /students
-  static Future<List<Student>> getStudents() async {
+  /// GET /students — null when the request failed, so a refresh on a flaky
+  /// connection can leave the list it already has alone instead of blanking it.
+  static Future<List<Student>?> getStudents() async {
     try {
       final res = await http.get(
         Uri.parse('$_baseUrl/students'),
         headers: await _authHeaders(),
       );
-      if (res.statusCode != 200) return [];
+      if (res.statusCode != 200) return null;
       final list = jsonDecode(res.body) as List<dynamic>;
       return list.map((e) {
         final m = e as Map<String, dynamic>;
@@ -73,18 +74,18 @@ class ApiService {
         );
       }).toList();
     } catch (_) {
-      return [];
+      return null;
     }
   }
 
-  /// GET /groups
-  static Future<List<Group>> getGroups() async {
+  /// GET /groups — null when the request failed, see [getStudents].
+  static Future<List<Group>?> getGroups() async {
     try {
       final res = await http.get(
         Uri.parse('$_baseUrl/groups'),
         headers: await _authHeaders(),
       );
-      if (res.statusCode != 200) return [];
+      if (res.statusCode != 200) return null;
       final list = jsonDecode(res.body) as List<dynamic>;
       return list.map((e) {
         final m = e as Map<String, dynamic>;
@@ -97,7 +98,7 @@ class ApiService {
         );
       }).toList();
     } catch (_) {
-      return [];
+      return null;
     }
   }
 

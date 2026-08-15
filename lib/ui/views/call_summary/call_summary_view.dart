@@ -3,6 +3,7 @@ import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -114,6 +115,8 @@ class _CallSummaryViewState extends State<CallSummaryView> {
         );
       }
     }
+    // The tabs underneath were built before this call existed.
+    RefreshSignal.fire();
     if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
