@@ -4,11 +4,32 @@ enum CallReason {
   teacherAbsence('Teacher absence notification', 'Teacher Absent'),
   inquiryOnAbsences('Inquiry on absences', 'Absence Inquiry'),
   survey('Survey', 'Survey'),
-  parentDidNotPickUp("Parent didn't pick up child", 'Pickup Missed');
+  parentDidNotPickUp("Parent didn't pick up child", 'Pickup Missed'),
 
-  const CallReason(this.label, this.chipLabel);
+  /// Only ever set by the incoming-call flow — a parent ringing back after
+  /// missing the agent's call. Never offered when choosing who to ring.
+  returnedOurCall('Parent called back', 'Called Back', incomingOnly: true);
+
+  const CallReason(this.label, this.chipLabel, {this.incomingOnly = false});
   final String label;
   final String chipLabel;
+
+  /// True for reasons that describe a call the agent received rather than
+  /// placed, so the outbound picker can leave them out.
+  final bool incomingOnly;
+
+  /// The reasons an agent can pick when starting a call himself.
+  static List<CallReason> get outgoing =>
+      values.where((r) => !r.incomingOnly).toList();
+}
+
+/// Who rang whom. An incoming call is one a parent placed to the agent —
+/// usually returning a call they missed earlier.
+enum CallDirection {
+  outgoing,
+  incoming;
+
+  bool get isIncoming => this == CallDirection.incoming;
 }
 
 enum CallOutcome {
@@ -121,6 +142,7 @@ class CallRecord {
     this.likelyHungUpEarly = false,
     this.endedQuickly = false,
     this.ringSessionSeconds,
+    this.direction = CallDirection.outgoing,
   });
 
   final String studentId;
@@ -136,9 +158,15 @@ class CallRecord {
   final bool likelyHungUpEarly;
   final bool endedQuickly;
   final int? ringSessionSeconds;
+  final CallDirection direction;
 
   /// True when the call log doesn't back up what the agent reported —
   /// this is the "agent is lying" signal.
+  ///
+  /// The dial-side checks below don't apply to an incoming call — the agent
+  /// never placed it, so he can't have faked placing it. What still applies is
+  /// the answered-vs-claimed matrix: marking a call the parent never got
+  /// through on as 'Interested' is the same overclaim in either direction.
   CallVerdictKind get verdictKind {
     if (!reallyDialed) return CallVerdictKind.noCallDetected;
     if (likelyHungUpEarly) return CallVerdictKind.earlyHangup;
@@ -165,6 +193,11 @@ class CallRecord {
   /// (was it placed, did it ring, was it answered, how long); it doesn't
   /// judge the agent's reported outcome — see [verdictLabel] for that.
   String get finalResult {
+    if (direction.isIncoming) {
+      return talkDurationSeconds > 0
+          ? 'Parent called the agent, call was answered, talked for ${_formatDuration(talkDurationSeconds)}'
+          : 'Parent called the agent but the call was not answered';
+    }
     if (!reallyDialed) return 'Agent never actually placed the call';
     if (likelyHungUpEarly) return 'Agent called and cancelled almost immediately';
     if (endedQuickly) return 'Call ended quickly — could be a decline or an early hangup';
@@ -185,8 +218,12 @@ class CallRecord {
   }
 
   String get verdictLabel => switch (verdictKind) {
-        CallVerdictKind.answeredMatch => 'Answered — talked ${talkDurationSeconds}s, matches agent report',
-        CallVerdictKind.notAnsweredMatch => 'Not answered${ringSessionSeconds != null ? " (rang ${ringSessionSeconds}s)" : ''} — matches agent report',
+        CallVerdictKind.answeredMatch => direction.isIncoming
+            ? 'Parent called in and was answered — talked ${talkDurationSeconds}s, matches agent report'
+            : 'Answered — talked ${talkDurationSeconds}s, matches agent report',
+        CallVerdictKind.notAnsweredMatch => direction.isIncoming
+            ? "Parent called in but it wasn't answered — matches agent report"
+            : 'Not answered${ringSessionSeconds != null ? " (rang ${ringSessionSeconds}s)" : ''} — matches agent report',
         CallVerdictKind.noCallDetected => 'No call was ever placed to this number',
         CallVerdictKind.mismatchUnderclaimed =>
           "Call connected (${talkDurationSeconds}s) but agent marked '${outcome?.label ?? '—'}'",
@@ -213,6 +250,7 @@ class CallRecord {
         'endedQuickly': endedQuickly,
         'ringSessionSeconds': ringSessionSeconds,
         'finalResult': finalResult,
+        'direction': direction.name,
       };
 
   factory CallRecord.fromJson(Map<String, dynamic> json) => CallRecord(
@@ -225,6 +263,10 @@ class CallRecord {
         likelyHungUpEarly: json['likelyHungUpEarly'] as bool? ?? false,
         endedQuickly: json['endedQuickly'] as bool? ?? false,
         ringSessionSeconds: json['ringSessionSeconds'] as int?,
+        // Records written before incoming calls existed have no direction.
+        direction: json['direction'] != null
+            ? CallDirection.values.byName(json['direction'] as String)
+            : CallDirection.outgoing,
         outcome: json['outcome'] != null ? CallOutcome.values.byName(json['outcome'] as String) : null,
         reallyDialed: json['reallyDialed'] as bool,
         talkDurationSeconds: json['talkDurationSeconds'] as int,

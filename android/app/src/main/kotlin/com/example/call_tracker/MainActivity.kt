@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.CallLog
 import android.telephony.TelephonyManager
 import androidx.core.content.ContextCompat
@@ -15,9 +17,46 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "call_tracker/native_call"
 
+    companion object {
+        /// Held statically because the incoming-call receiver runs in this same
+        /// process and needs to reach Dart when there is a Dart to reach. Null
+        /// means the app is not running — the receiver falls back to posting a
+        /// notification and leaving the call queued on disk.
+        @Volatile
+        private var channel: MethodChannel? = null
+
+        @Volatile
+        var isForeground: Boolean = false
+            private set
+
+        /// Tells a live app that an incoming call just finished, so it can show
+        /// the summary screen immediately instead of waiting for the next resume.
+        fun pingIncomingCall() {
+            val target = channel ?: return
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    target.invokeMethod("onIncomingCallEnded", null)
+                } catch (e: Exception) {
+                    // Engine torn down between the null check and the post.
+                }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isForeground = true
+    }
+
+    override fun onPause() {
+        isForeground = false
+        super.onPause()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
+        val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        methodChannel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "placeCall" -> placeCall(call.argument<String>("number"), result)
                 "isCallActive" -> isCallActive(result)
@@ -26,9 +65,23 @@ class MainActivity : FlutterActivity() {
                     call.argument<Long>("sinceEpochMs") ?: 0L,
                     result,
                 )
+                "drainIncomingCalls" -> result.success(IncomingCallStore.drain(applicationContext))
+                "cacheStudents" -> {
+                    val students = call.argument<List<Map<String, Any?>>>("students") ?: emptyList()
+                    IncomingCallStore.cacheStudents(applicationContext, students)
+                    result.success(true)
+                }
+                "cachedStudents" -> result.success(IncomingCallStore.cachedStudents(applicationContext))
                 else -> result.notImplemented()
             }
         }
+        channel = methodChannel
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        channel = null
+        isForeground = false
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     private fun placeCall(number: String?, result: MethodChannel.Result) {

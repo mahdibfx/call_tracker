@@ -20,6 +20,7 @@ class CallSummaryView extends StatefulWidget {
     required this.reason,
     required this.durationSeconds,
     this.verification,
+    this.direction = CallDirection.outgoing,
   });
 
   final Student student;
@@ -27,13 +28,27 @@ class CallSummaryView extends StatefulWidget {
   final int durationSeconds;
   final CallVerification? verification;
 
+  /// Incoming means the parent rang the agent — he never picked a reason up
+  /// front, so this screen has to ask for one as well as the outcome.
+  final CallDirection direction;
+
   @override
   State<CallSummaryView> createState() => _CallSummaryViewState();
 }
 
 class _CallSummaryViewState extends State<CallSummaryView> {
-  CallOutcome? _selectedOutcome = CallOutcome.interested;
+  /// A call the parent placed and nobody answered starts on "Couldn't reach".
+  /// Leaving it on "Interested" would mean an agent who just taps Save has
+  /// claimed contact on a call that never connected — scored as an overclaim
+  /// for something he never said.
+  late CallOutcome? _selectedOutcome =
+      widget.direction.isIncoming && widget.durationSeconds <= 0
+      ? CallOutcome.couldNotReach
+      : CallOutcome.interested;
+  late CallReason _selectedReason = widget.reason;
   final _notesController = TextEditingController();
+
+  bool get _isIncoming => widget.direction.isIncoming;
 
   static const _outcomeIcons = {
     CallOutcome.interested: Icons.thumb_up_outlined,
@@ -59,16 +74,24 @@ class _CallSummaryViewState extends State<CallSummaryView> {
   /// Deliberately derived from the call duration alone. Anything read off
   /// [CallVerification] here — "no call was detected for this number" being
   /// the worst of them — tells the agent his call log is being checked.
-  String get _statusDescription => widget.durationSeconds > 0
-      ? 'Call lasted $_formattedDuration.'
-      : 'The call was not answered.';
+  String get _statusDescription {
+    if (_isIncoming) {
+      return widget.durationSeconds > 0
+          ? '${widget.student.parentName.isEmpty ? 'They' : widget.student.parentName} called you — the call lasted $_formattedDuration.'
+          : '${widget.student.parentName.isEmpty ? 'They' : widget.student.parentName} called you but the call was not answered.';
+    }
+    return widget.durationSeconds > 0
+        ? 'Call lasted $_formattedDuration.'
+        : 'The call was not answered.';
+  }
 
   Future<void> _finish() async {
     final agent = await AuthService.currentAgent();
     final record = CallRecord(
       studentId: widget.student.id,
       studentName: widget.student.name,
-      reason: widget.reason,
+      reason: _selectedReason,
+      direction: widget.direction,
       outcome: _selectedOutcome,
       agentId: agent?.id,
       agentName: agent?.name,
@@ -86,7 +109,8 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     final result = await ApiService.submitCall(
       studentId: record.studentId,
       studentName: record.studentName,
-      reason: widget.reason.label,
+      reason: _selectedReason.label,
+      direction: widget.direction.name,
       outcome: _selectedOutcome?.label ?? '',
       notes: record.notes,
       reallyDialed: record.reallyDialed,
@@ -127,7 +151,10 @@ class _CallSummaryViewState extends State<CallSummaryView> {
           icon: const Icon(Icons.close, color: AppColors.textColor),
           onPressed: _finish,
         ),
-        title: CustomText.title(text: 'Call Summary', fontSize: 18),
+        title: CustomText.title(
+          text: _isIncoming ? 'Call You Received' : 'Call Summary',
+          fontSize: 18,
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -160,8 +187,8 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                         color: AppColors.greenColorLight,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.check,
+                      child: Icon(
+                        _isIncoming ? Icons.phone_callback : Icons.check,
                         color: AppColors.greenColor,
                         size: 20,
                       ),
@@ -223,7 +250,11 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                               ),
                             ),
                             child: CustomText.caption(
-                              text: 'Call Ended',
+                              text: _isIncoming
+                                  ? (widget.durationSeconds > 0
+                                        ? 'Incoming — Answered'
+                                        : 'Incoming — Missed')
+                                  : 'Call Ended',
                               textColor: AppColors.redColor,
                             ),
                           ),
@@ -241,6 +272,46 @@ class _CallSummaryViewState extends State<CallSummaryView> {
               ],
             ),
           ),
+          // Only for incoming calls: on an outgoing one the agent already
+          // chose the reason before dialling, and re-asking would let him
+          // rewrite it after the fact.
+          if (_isIncoming) ...[
+            verticalSpaceMedium,
+            CustomText.bodyBold(text: 'What was the call about?', fontSize: 16),
+            verticalSpaceSmall,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: CallReason.values.map((reason) {
+                final selected = _selectedReason == reason;
+                return ChoiceChip(
+                  label: Text(reason.label),
+                  selected: selected,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() => _selectedReason = reason),
+                  labelStyle: TextStyle(
+                    color: selected
+                        ? AppColors.primaryColor
+                        : AppColors.secondaryColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  backgroundColor: AppColors.cardColor,
+                  selectedColor: AppColors.primaryColorLight,
+                  side: BorderSide(
+                    color: selected
+                        ? AppColors.primaryColor
+                        : AppColors.borderColor,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      AppStyles.borderRadiusPillValue,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
           verticalSpaceMedium,
           CustomText.bodyBold(text: 'What was the outcome?', fontSize: 16),
           verticalSpaceSmall,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/api_service.dart';
+import 'package:call_tracker/data/incoming_call_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
@@ -45,6 +46,10 @@ class _StudentsViewState extends State<StudentsView> {
     _inFlight = true;
     try {
       final students = await ApiService.getStudents();
+      // Pushed down to the native receiver so a parent ringing back can be
+      // named even with the app closed. Not gated on `mounted` — the cache is
+      // worth writing whether or not this screen is still alive.
+      if (students != null) await IncomingCallService.syncRoster(students);
       if (!mounted) return;
       setState(() {
         // A failed fetch keeps whatever the list already had — losing the

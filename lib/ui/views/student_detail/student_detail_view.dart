@@ -30,6 +30,7 @@ class _StudentDetailViewState extends State<StudentDetailView> {
     CallReason.inquiryOnAbsences: Icons.help_outline,
     CallReason.survey: Icons.fact_check_outlined,
     CallReason.parentDidNotPickUp: Icons.directions_car_outlined,
+    CallReason.returnedOurCall: Icons.phone_callback,
   };
 
   @override
@@ -94,7 +95,10 @@ class _StudentDetailViewState extends State<StudentDetailView> {
             ],
           ),
           verticalSpaceSmall,
-          ...CallReason.values.map((reason) => Padding(
+          // Not .values — "Parent called back" only makes sense on a call the
+          // agent received, and offering it here would let him file an
+          // outbound call as an inbound one.
+          ...CallReason.outgoing.map((reason) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: _ReasonTile(
                   reason: reason,

@@ -10,6 +10,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Permission.phone.request();
+  // Android 13+. Without it the agent gets no prompt for a call that came in
+  // while the app was closed — it would only surface when he next opens it.
+  await Permission.notification.request();
 
   runApp(const MainApp());
 }

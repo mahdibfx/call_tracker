@@ -3,6 +3,9 @@
 <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 <uses-permission android:name="android.permission.READ_CALL_LOG" />
 <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Prompts the agent to log a call a parent made to him, when the app was
+         not open at the time. Android 13+ only; below that it is implicit. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="call_tracker"
         android:name="${applicationName}"
@@ -29,6 +32,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Catches incoming calls with no running app: Android starts the
+             process just to deliver this, which is the whole reason it is
+             declared here instead of registered from Dart. exported=true is
+             required for a system broadcast to reach it. -->
+        <receiver
+            android:name=".IncomingCallReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

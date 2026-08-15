@@ -78,6 +78,36 @@ class ApiService {
     }
   }
 
+  /// GET /students/lookup?phone=... — resolves a caller to a student.
+  ///
+  /// Null covers every non-match: no student on that number, the endpoint not
+  /// being deployed yet, or the request failing. The caller treats all three
+  /// the same — it just doesn't prompt the agent about that call — so an
+  /// unbuilt backend degrades to "only students already synced are matched"
+  /// rather than to an error.
+  static Future<Student?> lookupStudentByPhone(String phone) async {
+    try {
+      final res = await http.get(
+        Uri.parse(
+          '$_baseUrl/students/lookup',
+        ).replace(queryParameters: {'phone': phone}),
+        headers: await _authHeaders(),
+      );
+      if (res.statusCode != 200) return null;
+      final m = jsonDecode(res.body) as Map<String, dynamic>;
+      return Student(
+        id: m['id'].toString(),
+        name: m['name'] as String,
+        phone: m['phone'] as String,
+        level: m['level'] as String? ?? '',
+        parentName: m['parentName'] as String? ?? '',
+        studentId: m['studentId'] as String? ?? '',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GET /groups — null when the request failed, see [getStudents].
   static Future<List<Group>?> getGroups() async {
     try {
@@ -116,11 +146,13 @@ class ApiService {
     required bool endedQuickly,
     required String finalResult,
     required bool isFinal,
+    String direction = 'outgoing',
   }) async {
     final res = await http.post(
       Uri.parse('$_baseUrl/calls'),
       headers: await _authHeaders(),
       body: jsonEncode({
+        'direction': direction,
         'studentId': studentId,
         'studentName': studentName,
         'reason': reason,

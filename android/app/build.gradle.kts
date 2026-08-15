@@ -42,6 +42,11 @@ android {
     }
 }
 
+dependencies {
+    // NotificationCompat, for the incoming-call prompt posted from the receiver.
+    implementation("androidx.core:core-ktx:1.13.1")
+}
+
 flutter {
     source = "../.."
 }
