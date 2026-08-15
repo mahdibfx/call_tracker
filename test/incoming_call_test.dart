@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:call_tracker/data/incoming_call_service.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/test_mode.dart';
 
 /// Pins the incoming-call side: how a caller's number is matched to a student,
 /// and how a call the agent *received* is described and judged differently from
@@ -20,6 +21,10 @@ CallRecord incoming({
 );
 
 void main() {
+  // drain() reaches for the native queue and the cached roster; with no
+  // handlers registered both fail cleanly, which is what a test wants.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('caller matching', () {
     test('the same number in three formats is one student', () {
       // What the backend stores, what the network reports, and what a human
@@ -104,6 +109,61 @@ void main() {
       expect(CallRecord.fromJson(legacy).direction, CallDirection.outgoing);
     });
   });
+
+  // These pin the test-mode flag itself. They are skipped rather than inverted
+  // when it is turned off, so switching it off before shipping stays a
+  // one-line change that doesn't take a red test with it.
+  group(
+    'incoming-call test mode',
+    skip: kIncomingCallTestMode ? null : 'kIncomingCallTestMode is off',
+    () {
+      test('a simulated answered call comes back as the mock caller', () async {
+        IncomingCallService.simulate(
+          number: '+213 555 00 00 00',
+          talkDurationSeconds: 105,
+        );
+        final calls = await IncomingCallService.drain();
+
+        expect(calls, hasLength(1));
+        expect(calls.single.event.talkDurationSeconds, 105);
+        expect(calls.single.event.answered, isTrue);
+        // Matched nothing, so it must have fallen through to the stand-in
+        // rather than being dropped the way it would be in production.
+        expect(calls.single.student.id, 'test-mode');
+      });
+
+      test('a simulated missed call is answered:false with no talk time', () async {
+        IncomingCallService.simulate(
+          number: '+213 555 00 00 00',
+          talkDurationSeconds: 0,
+        );
+        final calls = await IncomingCallService.drain();
+
+        expect(calls.single.event.answered, isFalse);
+        expect(calls.single.event.talkDurationSeconds, 0);
+      });
+
+      test('draining twice does not ask about the same call again', () async {
+        IncomingCallService.simulate(
+          number: '+213 555 00 00 00',
+          talkDurationSeconds: 30,
+        );
+        expect(await IncomingCallService.drain(), hasLength(1));
+        expect(await IncomingCallService.drain(), isEmpty);
+      });
+
+      test('the mock caller keeps the number that actually rang', () {
+        final student = IncomingCallService.mockCaller('+213 555 00 00 00');
+        expect(student.phone, '+213 555 00 00 00');
+        // Anything this submits has to be obviously a test row.
+        expect(student.name.toLowerCase(), contains('mock'));
+      });
+
+      test('a withheld number still reaches the agent, labelled as unknown', () {
+        expect(IncomingCallService.mockCaller('').phone, 'Unknown number');
+      });
+    },
+  );
 
   test('the outbound reason picker never offers an incoming-only reason', () {
     expect(CallReason.outgoing, isNot(contains(CallReason.returnedOurCall)));

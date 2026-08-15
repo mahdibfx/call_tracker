@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_history_store.dart';
+import 'package:call_tracker/data/incoming_call_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
+import 'package:call_tracker/data/test_mode.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -79,6 +81,7 @@ class _DashboardViewState extends State<DashboardView> {
             ],
           ),
         ),
+        if (kIncomingCallTestMode) const _SimulateIncomingCallRow(),
         Expanded(
           child: RefreshIndicator(
             onRefresh: _load,
@@ -100,6 +103,69 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Fakes a call the agent just received, so the incoming-call flow can be
+/// checked without a second phone to ring this one from. The call goes through
+/// exactly the same drain → match → summary path a real one does; only the
+/// event at the top of it is invented.
+class _SimulateIncomingCallRow extends StatelessWidget {
+  const _SimulateIncomingCallRow();
+
+  /// Deliberately on nobody's roster, so it lands on the test-mode mock caller
+  /// — which is the branch the missing lookup endpoint is blocking.
+  static const _unknownNumber = '+213 555 00 00 00';
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Row(
+        children: [
+          CustomText.caption(text: 'Simulate incoming:'),
+          horizontalSpaceSmall,
+          _SimulateButton(
+            label: 'Answered',
+            onTap: () => IncomingCallService.simulate(
+              number: _unknownNumber,
+              talkDurationSeconds: 105,
+            ),
+          ),
+          horizontalSpaceSmall,
+          _SimulateButton(
+            label: 'Missed',
+            onTap: () => IncomingCallService.simulate(
+              number: _unknownNumber,
+              talkDurationSeconds: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimulateButton extends StatelessWidget {
+  const _SimulateButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        side: const BorderSide(color: AppColors.borderColor),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppStyles.borderRadiusPillValue),
+        ),
+      ),
+      child: CustomText.caption(text: label, textColor: AppColors.primaryColor),
     );
   }
 }

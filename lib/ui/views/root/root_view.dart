@@ -41,6 +41,9 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     // need to wait for a resume that may never come if he is already looking
     // at the app.
     NativeCallService.setIncomingCallListener(_presentIncomingCalls);
+    // Test mode's simulate buttons queue a call with no native event behind
+    // it, so they need their own way to say "there is something to drain".
+    IncomingCallService.simulationSignal.addListener(_presentIncomingCalls);
     // A call placed before the app process was killed mid-call still needs
     // reconciling against the call log so the agent can't dodge it by
     // force-closing the app.
@@ -50,6 +53,7 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
   @override
   void dispose() {
     NativeCallService.setIncomingCallListener(null);
+    IncomingCallService.simulationSignal.removeListener(_presentIncomingCalls);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
