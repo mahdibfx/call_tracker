@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -25,7 +26,15 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   void initState() {
     super.initState();
-    if (kShowCallMonitor) _load();
+    if (!kShowCallMonitor) return;
+    _load();
+    RefreshSignal.listenable.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    if (kShowCallMonitor) RefreshSignal.listenable.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -71,14 +80,24 @@ class _DashboardViewState extends State<DashboardView> {
           ),
         ),
         Expanded(
-          child: records.isEmpty
-              ? Center(child: CustomText.subtitle(text: 'No calls recorded yet'))
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  itemCount: records.length,
-                  separatorBuilder: (_, _) => verticalSpaceSmall,
-                  itemBuilder: (context, i) => _CallRecordTile(record: records[i]),
-                ),
+          child: RefreshIndicator(
+            onRefresh: _load,
+            color: AppColors.primaryColor,
+            child: records.isEmpty
+                // Still a ListView so the empty state can be pulled down to refresh.
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+                    children: [Center(child: CustomText.subtitle(text: 'No calls recorded yet'))],
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    itemCount: records.length,
+                    separatorBuilder: (_, _) => verticalSpaceSmall,
+                    itemBuilder: (context, i) => _CallRecordTile(record: records[i]),
+                  ),
+          ),
         ),
       ],
     );

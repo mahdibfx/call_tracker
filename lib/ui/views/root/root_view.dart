@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_monitor.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/views/call_summary/call_summary_view.dart';
 import 'package:call_tracker/ui/views/dashboard/dashboard_view.dart';
 import 'package:call_tracker/ui/views/groups/groups_view.dart';
@@ -15,7 +16,7 @@ class RootView extends StatefulWidget {
   State<RootView> createState() => _RootViewState();
 }
 
-class _RootViewState extends State<RootView> {
+class _RootViewState extends State<RootView> with WidgetsBindingObserver {
   int _index = 0;
 
   static const _tabs = [
@@ -28,10 +29,29 @@ class _RootViewState extends State<RootView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // A call placed before the app process was killed mid-call still needs
     // reconciling against the call log so the agent can't dodge it by
     // force-closing the app.
     WidgetsBinding.instance.addPostFrameCallback((_) => _resumePendingCall());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Coming back from the background is the moment a list is most likely to be
+  /// stale — the agent has usually just been told about a new student.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) RefreshSignal.fire();
+  }
+
+  void _onTabTap(int index) {
+    if (index != _index) RefreshSignal.fire();
+    setState(() => _index = index);
   }
 
   Future<void> _resumePendingCall() async {
@@ -63,7 +83,7 @@ class _RootViewState extends State<RootView> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
-      bottomNavigationBar: BottomNavBar(currentIndex: _index, onTap: (i) => setState(() => _index = i)),
+      bottomNavigationBar: BottomNavBar(currentIndex: _index, onTap: _onTabTap),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -23,21 +24,40 @@ class _GroupsViewState extends State<GroupsView> {
   List<Group> _groups = [];
   List<Student> _students = [];
   bool _loading = true;
+  bool _inFlight = false;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    RefreshSignal.listenable.addListener(_load);
+  }
+
+  @override
+  void dispose() {
+    RefreshSignal.listenable.removeListener(_load);
+    super.dispose();
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([ApiService.getGroups(), ApiService.getStudents()]);
-    if (!mounted) return;
-    setState(() {
-      _groups = results[0] as List<Group>;
-      _students = results[1] as List<Student>;
-      _loading = false;
-    });
+    if (_inFlight) return;
+    _inFlight = true;
+    try {
+      final results = await Future.wait([ApiService.getGroups(), ApiService.getStudents()]);
+      final groups = results[0] as List<Group>?;
+      final students = results[1] as List<Student>?;
+      if (!mounted) return;
+      setState(() {
+        // A failed fetch keeps whatever the list already had — see StudentsView.
+        if (groups != null) _groups = groups;
+        if (students != null) _students = students;
+        _failed = groups == null || students == null;
+        _loading = false;
+      });
+    } finally {
+      _inFlight = false;
+    }
   }
 
   List<Group> get _filtered => _groups.where((g) => g.name.toLowerCase().contains(_query.toLowerCase())).toList();
@@ -55,26 +75,53 @@ class _GroupsViewState extends State<GroupsView> {
           ),
           verticalSpaceMedium,
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _filtered.length,
-              separatorBuilder: (_, _) => verticalSpaceSmall,
-              itemBuilder: (context, i) {
-                final group = _filtered[i];
-                final expanded = _expandedGroup == group.name;
-                return _GroupCard(
-                  group: group,
-                  students: _students,
-                  expanded: expanded,
-                  onTap: () => setState(() => _expandedGroup = expanded ? null : group.name),
-                );
-              },
+            child: RefreshIndicator(
+              onRefresh: _load,
+              color: AppColors.primaryColor,
+              child: _buildList(),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildList() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    final groups = _filtered;
+    if (groups.isEmpty) {
+      // Still a ListView so the empty state can be pulled down to refresh.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+        children: [
+          Center(
+            child: CustomText.subtitle(
+              text: _groups.isNotEmpty
+                  ? 'No groups match your search.'
+                  : _failed
+                      ? "Couldn't load groups — pull down to retry."
+                      : 'No groups yet — pull down to refresh.',
+            ),
+          ),
+        ],
+      );
+    }
+    return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      itemCount: groups.length,
+      separatorBuilder: (_, _) => verticalSpaceSmall,
+      itemBuilder: (context, i) {
+        final group = groups[i];
+        final expanded = _expandedGroup == group.name;
+        return _GroupCard(
+          group: group,
+          students: _students,
+          expanded: expanded,
+          onTap: () => setState(() => _expandedGroup = expanded ? null : group.name),
+        );
+      },
     );
   }
 }
