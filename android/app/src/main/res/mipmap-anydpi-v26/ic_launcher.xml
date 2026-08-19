@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 8+ adaptive icon. The launcher masks these two layers itself, so
+     the foreground keeps the mark inside the centre 66% and the corner shape
+     is the launcher's to decide. Older releases fall back to the flattened
+     rounded square in mipmap-*/ic_launcher.png. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

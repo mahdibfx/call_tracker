@@ -7,7 +7,7 @@
          not open at the time. Android 13+ only; below that it is implicit. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
-        android:label="call_tracker"
+        android:label="Call Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

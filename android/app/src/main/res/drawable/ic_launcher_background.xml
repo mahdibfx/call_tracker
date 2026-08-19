@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same two orange stops as tool/generate_app_icons.py paints into the raster
+     icons, so the adaptive icon and the legacy one look like the same logo. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#F5773D"
+        android:endColor="#DE541C"
+        android:type="linear" />
+</shape>

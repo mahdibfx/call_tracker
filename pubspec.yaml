@@ -1,5 +1,5 @@
 name: call_tracker
-description: "A new Flutter project."
+description: "Call logging for language institute call center agents."
 publish_to: 'none'
 version: 0.1.0
 
@@ -23,3 +23,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/app_icon.png

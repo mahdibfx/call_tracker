@@ -391,7 +391,10 @@ object IncomingCallStore {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.sym_action_call)
+            // Alpha-only silhouette of the launcher mark; the system tints it
+            // and would render a full-colour icon as a solid block.
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFFF2662C.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
