@@ -62,9 +62,14 @@ class ApiService {
       );
       if (res.statusCode != 200) return null;
       final list = jsonDecode(res.body) as List<dynamic>;
-      return list.map((e) {
+      // ponytail: defensive dedupe — the backend has been seen returning the
+      // same student id twice; drop the repeat here rather than in every
+      // screen that filters this roster. Remove once the API is confirmed clean.
+      final seenIds = <String>{};
+      final students = <Student>[];
+      for (final e in list) {
         final m = e as Map<String, dynamic>;
-        return Student(
+        final student = Student(
           id: m['id'].toString(),
           name: m['name'] as String,
           phone: m['phone'] as String,
@@ -72,7 +77,9 @@ class ApiService {
           parentName: m['parentName'] as String,
           studentId: m['studentId'] as String,
         );
-      }).toList();
+        if (seenIds.add(student.id)) students.add(student);
+      }
+      return students;
     } catch (_) {
       return null;
     }
