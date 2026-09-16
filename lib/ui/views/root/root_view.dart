@@ -59,13 +59,15 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     if (pending == null) return;
     final verification = await CallMonitor.reconcile(pending);
     if (!mounted) return;
+    // Rebuilt from what was stored when the call was placed — the roster isn't
+    // refetched here, so this works even with no connection after the call.
     final student = Student(
       id: pending.studentId,
       name: pending.studentName,
-      phone: pending.number,
       level: '',
-      parentName: pending.parentName,
-      studentId: '',
+      phones: [
+        StudentPhone(number: pending.number, type: 'personal', isPrimary: true),
+      ],
     );
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -74,6 +76,7 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
           reason: pending.reason,
           durationSeconds: verification.talkDurationSeconds,
           verification: verification,
+          startedAtEpochMs: pending.startedAtEpochMs,
         ),
       ),
     );

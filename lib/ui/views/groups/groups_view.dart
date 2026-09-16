@@ -22,10 +22,14 @@ class _GroupsViewState extends State<GroupsView> {
   String _query = '';
   String? _expandedGroup;
   List<Group> _groups = [];
-  List<Student> _students = [];
   bool _loading = true;
   bool _inFlight = false;
   bool _failed = false;
+
+  /// Rosters are fetched per group the first time it's expanded — the groups
+  /// payload no longer carries its student ids. Keyed by group id.
+  final Map<String, List<Student>> _rosters = {};
+  final Set<String> _rostersLoading = {};
 
   @override
   void initState() {
@@ -44,20 +48,40 @@ class _GroupsViewState extends State<GroupsView> {
     if (_inFlight) return;
     _inFlight = true;
     try {
-      final results = await Future.wait([ApiService.getGroups(), ApiService.getStudents()]);
-      final groups = results[0] as List<Group>?;
-      final students = results[1] as List<Student>?;
+      final groups = await ApiService.getGroups();
       if (!mounted) return;
       setState(() {
         // A failed fetch keeps whatever the list already had — see StudentsView.
         if (groups != null) _groups = groups;
-        if (students != null) _students = students;
-        _failed = groups == null || students == null;
+        _failed = groups == null;
         _loading = false;
+        // Rosters may be stale after a refresh; drop them so an expanded
+        // group refetches rather than showing an out-of-date list.
+        _rosters.clear();
       });
+      final expanded = _expandedGroup;
+      if (expanded != null) _loadRoster(expanded);
     } finally {
       _inFlight = false;
     }
+  }
+
+  Future<void> _loadRoster(String groupId) async {
+    if (_rostersLoading.contains(groupId)) return;
+    _rostersLoading.add(groupId);
+    try {
+      final page = await ApiService.getGroupStudents(groupId);
+      if (!mounted || page == null) return;
+      setState(() => _rosters[groupId] = page.items);
+    } finally {
+      _rostersLoading.remove(groupId);
+    }
+  }
+
+  void _toggleGroup(Group group) {
+    final expanded = _expandedGroup == group.id;
+    setState(() => _expandedGroup = expanded ? null : group.id);
+    if (!expanded && !_rosters.containsKey(group.id)) _loadRoster(group.id);
   }
 
   List<Group> get _filtered => _groups.where((g) => g.name.toLowerCase().contains(_query.toLowerCase())).toList();
@@ -114,12 +138,12 @@ class _GroupsViewState extends State<GroupsView> {
       separatorBuilder: (_, _) => verticalSpaceSmall,
       itemBuilder: (context, i) {
         final group = groups[i];
-        final expanded = _expandedGroup == group.name;
         return _GroupCard(
           group: group,
-          students: _students,
-          expanded: expanded,
-          onTap: () => setState(() => _expandedGroup = expanded ? null : group.name),
+          students: _rosters[group.id],
+          rosterLoading: _rostersLoading.contains(group.id),
+          expanded: _expandedGroup == group.id,
+          onTap: () => _toggleGroup(group),
         );
       },
     );
@@ -127,16 +151,25 @@ class _GroupsViewState extends State<GroupsView> {
 }
 
 class _GroupCard extends StatelessWidget {
-  const _GroupCard({required this.group, required this.students, required this.expanded, required this.onTap});
+  const _GroupCard({
+    required this.group,
+    required this.students,
+    required this.rosterLoading,
+    required this.expanded,
+    required this.onTap,
+  });
 
   final Group group;
-  final List<Student> students;
+
+  /// Null until this group's roster has been fetched.
+  final List<Student>? students;
+  final bool rosterLoading;
   final bool expanded;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final groupStudents = students.where((s) => group.studentIds.contains(s.id)).toList();
+    final groupStudents = students;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardColor,
@@ -165,6 +198,35 @@ class _GroupCard extends StatelessWidget {
                             CustomText.subtitle(text: '${group.studentCount} Students'),
                           ],
                         ),
+                        if (group.category.isNotEmpty || group.type.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.local_offer_outlined, size: 14, color: AppColors.secondaryColor),
+                              horizontalSpaceTiny,
+                              Expanded(
+                                child: CustomText.subtitle(
+                                  text: [group.category, group.type]
+                                      .where((v) => v.isNotEmpty)
+                                      .join(' • '),
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        if (group.teacherName.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              const Icon(Icons.person_outline, size: 14, color: AppColors.secondaryColor),
+                              horizontalSpaceTiny,
+                              Expanded(
+                                child: CustomText.subtitle(text: group.teacherName, maxLines: 1),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -180,7 +242,26 @@ class _GroupCard extends StatelessWidget {
                 children: [
                   const Divider(height: 1, color: AppColors.borderColor),
                   verticalSpaceSmall,
-                  ...groupStudents.map((s) => Padding(
+                  if (groupStudents == null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: rosterLoading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : Center(child: CustomText.subtitle(text: "Couldn't load this group's students.")),
+                    )
+                  else if (groupStudents.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Center(child: CustomText.subtitle(text: 'No students in this group yet.')),
+                    )
+                  else
+                    ...groupStudents.map((s) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         child: InkWell(
                           onTap: () => Navigator.of(context).push(

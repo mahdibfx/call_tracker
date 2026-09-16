@@ -61,7 +61,6 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
       PendingCall(
         studentId: widget.student.id,
         studentName: widget.student.name,
-        parentName: widget.student.parentName,
         number: widget.student.phone,
         startedAtEpochMs: startedAt.millisecondsSinceEpoch,
         reason: widget.reason,
@@ -129,6 +128,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
           reason: widget.reason,
           durationSeconds: verification.talkDurationSeconds,
           verification: verification,
+          startedAtEpochMs: pending.startedAtEpochMs,
         ),
       ),
     );
@@ -194,7 +194,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
               verticalSpaceMedium,
               CustomText.title(text: widget.student.name, fontSize: 20),
               const SizedBox(height: 4),
-              CustomText.subtitle(text: 'Parent: ${widget.student.parentName}'),
+              CustomText.subtitle(text: widget.student.phone),
               verticalSpaceMedium,
               Container(
                 padding: const EdgeInsets.symmetric(

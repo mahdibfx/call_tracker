@@ -77,11 +77,27 @@ class _StudentDetailViewState extends State<StudentDetailView> {
                 ),
                 verticalSpaceSmall,
                 CustomText.headline(text: student.name),
-                CustomText.subtitle(text: 'Student ID: ${student.studentId}'),
+                CustomText.subtitle(text: 'Level: ${student.level}'),
                 const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1, color: AppColors.borderColor)),
-                _InfoRow(icon: Icons.escalator_warning_outlined, label: "Parent's Name", value: student.parentName),
-                verticalSpaceSmall,
-                _InfoRow(icon: Icons.call_outlined, label: 'Phone Number', value: student.phone),
+                // The API carries no parent name — only the numbers on file,
+                // each tagged personal or parent.
+                if (student.phones.isEmpty)
+                  _InfoRow(icon: Icons.call_outlined, label: 'Phone Number', value: 'No number on file')
+                else
+                  ...student.phones.map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _InfoRow(
+                        icon: p.isParentLine ? Icons.escalator_warning_outlined : Icons.call_outlined,
+                        label: [
+                          p.isParentLine ? "Parent's number" : 'Personal number',
+                          if (p.label != null && p.label!.isNotEmpty) '(${p.label})',
+                          if (p.isPrimary) '• primary',
+                        ].join(' '),
+                        value: p.number,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
@@ -19,38 +21,51 @@ class StudentsView extends StatefulWidget {
 }
 
 class _StudentsViewState extends State<StudentsView> {
-  static const _levels = ['All Levels', 'A1', 'A2', 'B1', 'B2'];
-  String _selectedLevel = 'All Levels';
+  final _scrollController = ScrollController();
+  Timer? _searchDebounce;
+
   String _query = '';
   List<Student> _students = [];
+  int _page = 1;
+  int _totalPages = 1;
   bool _loading = true;
+  bool _loadingMore = false;
   bool _inFlight = false;
   bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _loadStudents();
-    RefreshSignal.listenable.addListener(_loadStudents);
+    _scrollController.addListener(_onScroll);
+    _loadFirstPage();
+    RefreshSignal.listenable.addListener(_loadFirstPage);
   }
 
   @override
   void dispose() {
-    RefreshSignal.listenable.removeListener(_loadStudents);
+    RefreshSignal.listenable.removeListener(_loadFirstPage);
+    _searchDebounce?.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadStudents() async {
+  /// The roster is thousands of students, so it arrives a page at a time and
+  /// searching happens server-side rather than over what's been loaded.
+  Future<void> _loadFirstPage() async {
     if (_inFlight) return;
     _inFlight = true;
     try {
-      final students = await ApiService.getStudents();
+      final page = await ApiService.getStudents(page: 1, search: _query);
       if (!mounted) return;
       setState(() {
         // A failed fetch keeps whatever the list already had — losing the
         // roster to one bad refresh would be worse than showing it stale.
-        if (students != null) _students = students;
-        _failed = students == null;
+        if (page != null) {
+          _students = page.items;
+          _page = page.page;
+          _totalPages = page.totalPages;
+        }
+        _failed = page == null;
         _loading = false;
       });
     } finally {
@@ -58,14 +73,42 @@ class _StudentsViewState extends State<StudentsView> {
     }
   }
 
-  List<Student> get _filtered {
-    return _students.where((s) {
-      final matchesLevel = _selectedLevel == 'All Levels' || s.level == _selectedLevel;
-      final matchesQuery = _query.isEmpty ||
-          s.name.toLowerCase().contains(_query.toLowerCase()) ||
-          s.phone.contains(_query);
-      return matchesLevel && matchesQuery;
-    }).toList();
+  Future<void> _loadNextPage() async {
+    if (_inFlight || _loadingMore || _page >= _totalPages) return;
+    _inFlight = true;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await ApiService.getStudents(page: _page + 1, search: _query);
+      if (!mounted) return;
+      setState(() {
+        if (page != null) {
+          _students = [..._students, ...page.items];
+          _page = page.page;
+          _totalPages = page.totalPages;
+        }
+        _loadingMore = false;
+      });
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 400) _loadNextPage();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted || value.trim() == _query) return;
+      setState(() {
+        _query = value.trim();
+        _loading = true;
+      });
+      _loadFirstPage();
+    });
   }
 
   @override
@@ -85,42 +128,13 @@ class _StudentsViewState extends State<StudentsView> {
             child: CustomInput(
               hintText: 'Search by name or number...',
               prefixIcon: Icons.search,
-              onChanged: (v) => setState(() => _query = v),
-            ),
-          ),
-          verticalSpaceMedium,
-          SizedBox(
-            height: 36,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _levels.length,
-              separatorBuilder: (_, _) => horizontalSpaceSmall,
-              itemBuilder: (context, i) {
-                final level = _levels[i];
-                final selected = level == _selectedLevel;
-                return ChoiceChip(
-                  label: Text(level),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _selectedLevel = level),
-                  showCheckmark: false,
-                  labelStyle: TextStyle(
-                    color: selected ? AppColors.primaryColor : AppColors.secondaryColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                  backgroundColor: AppColors.cardColor,
-                  selectedColor: AppColors.primaryColorLight,
-                  side: BorderSide(color: selected ? AppColors.primaryColor : AppColors.borderColor),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppStyles.borderRadiusPillValue)),
-                );
-              },
+              onChanged: _onSearchChanged,
             ),
           ),
           verticalSpaceMedium,
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _loadStudents,
+              onRefresh: _loadFirstPage,
               color: AppColors.primaryColor,
               child: _buildList(),
             ),
@@ -132,8 +146,7 @@ class _StudentsViewState extends State<StudentsView> {
 
   Widget _buildList() {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    final students = _filtered;
-    if (students.isEmpty) {
+    if (_students.isEmpty) {
       // Still a ListView so the empty state can be pulled down to refresh.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -141,7 +154,7 @@ class _StudentsViewState extends State<StudentsView> {
         children: [
           Center(
             child: CustomText.subtitle(
-              text: _students.isNotEmpty
+              text: _query.isNotEmpty
                   ? 'No students match your search.'
                   : _failed
                       ? "Couldn't load students — pull down to retry."
@@ -152,12 +165,25 @@ class _StudentsViewState extends State<StudentsView> {
       );
     }
     return ListView.separated(
+      controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      itemCount: students.length,
+      itemCount: _students.length + (_page < _totalPages ? 1 : 0),
       separatorBuilder: (_, _) => verticalSpaceSmall,
       itemBuilder: (context, i) {
-        final student = students[i];
+        if (i >= _students.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        final student = _students[i];
         return _StudentRow(
           student: student,
           onTap: () => Navigator.of(context).push(
@@ -175,8 +201,16 @@ class _StudentRow extends StatelessWidget {
   final Student student;
   final VoidCallback onTap;
 
+  static String _formatDate(DateTime date) {
+    final d = date.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm/${d.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lastCall = student.lastCall;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppStyles.borderRadiusLargeValue),
@@ -195,15 +229,27 @@ class _StudentRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CustomText.bodyBold(text: student.name, fontSize: 15),
+                  CustomText.bodyBold(text: student.name, fontSize: 15, maxLines: 1),
                   const SizedBox(height: 2),
                   Row(
                     children: [
                       const Icon(Icons.call, size: 13, color: AppColors.secondaryColor),
                       horizontalSpaceTiny,
-                      CustomText.subtitle(text: student.phone),
+                      CustomText.subtitle(
+                        text: student.hasPhone ? student.phone : 'No number on file',
+                      ),
                     ],
                   ),
+                  if (lastCall != null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Icon(Icons.history, size: 13, color: AppColors.secondaryColor),
+                        horizontalSpaceTiny,
+                        CustomText.subtitle(text: 'Called at ${_formatDate(lastCall.date)}'),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

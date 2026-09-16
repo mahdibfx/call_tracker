@@ -10,7 +10,6 @@ class PendingCall {
   const PendingCall({
     required this.studentId,
     required this.studentName,
-    required this.parentName,
     required this.number,
     required this.startedAtEpochMs,
     required this.reason,
@@ -18,7 +17,6 @@ class PendingCall {
 
   final String studentId;
   final String studentName;
-  final String parentName;
   final String number;
   final int startedAtEpochMs;
   final CallReason reason;
@@ -26,7 +24,6 @@ class PendingCall {
   Map<String, dynamic> toJson() => {
         'studentId': studentId,
         'studentName': studentName,
-        'parentName': parentName,
         'number': number,
         'startedAtEpochMs': startedAtEpochMs,
         'reason': reason.name,
@@ -35,7 +32,6 @@ class PendingCall {
   factory PendingCall.fromJson(Map<String, dynamic> json) => PendingCall(
         studentId: json['studentId'] as String,
         studentName: json['studentName'] as String? ?? '',
-        parentName: json['parentName'] as String? ?? '',
         number: json['number'] as String,
         startedAtEpochMs: json['startedAtEpochMs'] as int,
         reason: CallReason.values.byName(json['reason'] as String),

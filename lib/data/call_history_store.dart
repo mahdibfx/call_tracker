@@ -2,7 +2,12 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/models.dart';
 
-/// Persists finished, verified calls for the test-mode monitor screen.
+/// On-device record of finished calls, backing the History tab. The backend
+/// has no history endpoint, so this is the only place past calls can be read
+/// back — and it keeps working with no connection.
+///
+/// Records carry verification fields, but History must never render anything
+/// derived from them (see CLAUDE.md).
 class CallHistoryStore {
   static const _key = 'call_history';
 

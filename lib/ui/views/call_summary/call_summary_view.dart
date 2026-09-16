@@ -19,12 +19,17 @@ class CallSummaryView extends StatefulWidget {
     required this.student,
     required this.reason,
     required this.durationSeconds,
+    required this.startedAtEpochMs,
     this.verification,
   });
 
   final Student student;
   final CallReason reason;
   final int durationSeconds;
+
+  /// When the agent tapped "Start Call" — sent to the backend alongside the
+  /// end time so a late submission still records when the call really was.
+  final int startedAtEpochMs;
   final CallVerification? verification;
 
   @override
@@ -95,7 +100,8 @@ class _CallSummaryViewState extends State<CallSummaryView> {
       likelyHungUpEarly: record.likelyHungUpEarly,
       endedQuickly: record.endedQuickly,
       finalResult: record.finalResult,
-      isFinal: true,
+      startedAtEpochMs: widget.startedAtEpochMs,
+      endedAtEpochMs: record.timestampEpochMs,
     );
 
     if (result != null) {
@@ -175,9 +181,7 @@ class _CallSummaryViewState extends State<CallSummaryView> {
                             text: widget.student.name,
                             fontSize: 16,
                           ),
-                          CustomText.subtitle(
-                            text: 'Parent: ${widget.student.parentName}',
-                          ),
+                          CustomText.subtitle(text: widget.student.phone),
                         ],
                       ),
                     ),

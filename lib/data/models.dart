@@ -39,22 +39,130 @@ class Agent {
       );
 }
 
+/// One number on a student's file. `type` is `personal` or `parent`.
+class StudentPhone {
+  const StudentPhone({
+    required this.number,
+    required this.type,
+    required this.isPrimary,
+    this.label,
+  });
+
+  final String number;
+  final String type;
+  final bool isPrimary;
+  final String? label;
+
+  bool get isParentLine => type == 'parent';
+
+  factory StudentPhone.fromJson(Map<String, dynamic> json) => StudentPhone(
+        number: (json['number'] ?? '').toString(),
+        type: (json['type'] ?? 'personal').toString(),
+        isPrimary: json['is_primary'] == true,
+        label: json['label'] as String?,
+      );
+}
+
+/// The most recent call on a student's record, as the backend reports it.
+/// `verdict` is computed server-side and must never reach agent-facing UI.
+class LastCall {
+  const LastCall({required this.date, this.reason, this.outcome, this.summary});
+
+  final DateTime date;
+  final String? reason;
+  final String? outcome;
+  final String? summary;
+
+  static LastCall? fromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    final raw = json['date'];
+    if (raw == null) return null;
+    final date = DateTime.tryParse(raw.toString());
+    if (date == null) return null;
+    return LastCall(
+      date: date,
+      reason: json['reason'] as String?,
+      outcome: json['outcome'] as String?,
+      summary: json['summary'] as String?,
+    );
+  }
+}
+
 class Student {
   const Student({
     required this.id,
     required this.name,
-    required this.phone,
     required this.level,
-    required this.parentName,
-    required this.studentId,
+    required this.phones,
+    this.lastCall,
   });
 
   final String id;
   final String name;
-  final String phone;
   final String level;
-  final String parentName;
-  final String studentId;
+  final List<StudentPhone> phones;
+  final LastCall? lastCall;
+
+  /// The number the dialer should call. A line explicitly marked as the
+  /// parent's wins — that's who the agent is trying to reach — then the
+  /// primary, then whatever exists.
+  String get phone {
+    if (phones.isEmpty) return '';
+    for (final p in phones) {
+      if (p.isParentLine && p.isPrimary) return p.number;
+    }
+    for (final p in phones) {
+      if (p.isParentLine) return p.number;
+    }
+    for (final p in phones) {
+      if (p.isPrimary) return p.number;
+    }
+    return phones.first.number;
+  }
+
+  bool get hasPhone => phone.isNotEmpty;
+
+  factory Student.fromJson(Map<String, dynamic> json) {
+    final first = (json['first_name'] ?? '').toString().trim();
+    final last = (json['last_name'] ?? '').toString().trim();
+    final name = [first, last].where((p) => p.isNotEmpty).join(' ');
+    return Student(
+      id: json['student_id'].toString(),
+      name: name.isEmpty ? 'Unnamed student' : name,
+      level: (json['level'] as String?)?.trim().isNotEmpty == true
+          ? json['level'] as String
+          : 'Unknown',
+      phones: (json['phone_numbers'] as List<dynamic>? ?? [])
+          .map((p) => StudentPhone.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      lastCall: LastCall.fromJson(json['last_call'] as Map<String, dynamic>?),
+    );
+  }
+}
+
+/// One page of a paginated list endpoint.
+class Paged<T> {
+  const Paged({required this.items, required this.page, required this.totalPages});
+
+  final List<T> items;
+  final int page;
+  final int totalPages;
+
+  bool get hasMore => page < totalPages;
+
+  static Paged<T> fromJson<T>(
+    Map<String, dynamic> json,
+    T Function(Map<String, dynamic>) itemFromJson,
+  ) {
+    final pagination = json['pagination'] as Map<String, dynamic>? ?? const {};
+    return Paged<T>(
+      items: (json['data'] as List<dynamic>? ?? [])
+          .map((e) => itemFromJson(e as Map<String, dynamic>))
+          .toList(),
+      page: (pagination['page'] as num?)?.toInt() ?? 1,
+      totalPages: (pagination['totalPages'] as num?)?.toInt() ?? 1,
+    );
+  }
 }
 
 /// Result of cross-checking a call against the device's own call log —
@@ -233,9 +341,39 @@ class CallRecord {
 }
 
 class Group {
-  const Group({required this.name, required this.studentCount, required this.studentIds});
+  const Group({
+    required this.id,
+    required this.name,
+    required this.studentCount,
+    required this.type,
+    required this.category,
+    required this.teacherName,
+    required this.state,
+  });
 
+  final String id;
   final String name;
   final int studentCount;
-  final List<String> studentIds;
+
+  /// Delivery type — `Onsite` or `Online`.
+  final String type;
+
+  /// The "featuring" bucket, e.g. `Language Level`, `Summer Camp`.
+  final String category;
+  final String teacherName;
+
+  /// `running`, `waiting to complete` or `stopped`.
+  final String state;
+
+  /// The roster is not part of this payload — fetch it per group with
+  /// `ApiService.getGroupStudents(id)`.
+  factory Group.fromJson(Map<String, dynamic> json) => Group(
+        id: json['id'].toString(),
+        name: (json['name'] ?? '').toString(),
+        studentCount: (json['studentCount'] as num?)?.toInt() ?? 0,
+        type: (json['type'] as String?)?.trim() ?? '',
+        category: (json['category'] as String?)?.trim() ?? '',
+        teacherName: (json['teacher_name'] as String?)?.trim() ?? '',
+        state: (json['state'] as String?)?.trim() ?? '',
+      );
 }

@@ -4,8 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/models.dart';
 
 class ApiService {
-  static const _baseUrl = 'https://backendelameed.onrender.com/api';
+  static const _host = 'https://backendelameed.onrender.com';
+
+  /// Call-tracker routes. These return plain JSON bodies — no `{success,
+  /// message, data}` envelope, unlike the rest of the API (see [getGroupStudents]).
+  static const _baseUrl = '$_host/call-tracker';
   static const _tokenKey = 'jwt_token';
+
+  /// The backend caps `limit` at 100.
+  static const studentsPageSize = 100;
 
   static Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -52,40 +59,34 @@ class ApiService {
     }
   }
 
-  /// GET /students — null when the request failed, so a refresh on a flaky
-  /// connection can leave the list it already has alone instead of blanking it.
-  static Future<List<Student>?> getStudents() async {
+  /// GET /call-tracker/students — one page of the dialing list. Null when the
+  /// request failed, so a refresh on a flaky connection can leave the list it
+  /// already has alone instead of blanking it.
+  ///
+  /// [search] matches name, email and any phone on file, server-side — the
+  /// roster is far too large to filter on the device.
+  static Future<Paged<Student>?> getStudents({
+    int page = 1,
+    int limit = studentsPageSize,
+    String? search,
+  }) async {
     try {
-      final res = await http.get(
-        Uri.parse('$_baseUrl/students'),
-        headers: await _authHeaders(),
-      );
+      final uri = Uri.parse('$_baseUrl/students').replace(queryParameters: {
+        'page': '$page',
+        'limit': '$limit',
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      });
+      final res = await http.get(uri, headers: await _authHeaders());
       if (res.statusCode != 200) return null;
-      final list = jsonDecode(res.body) as List<dynamic>;
-      // ponytail: defensive dedupe — the backend has been seen returning the
-      // same student id twice; drop the repeat here rather than in every
-      // screen that filters this roster. Remove once the API is confirmed clean.
-      final seenIds = <String>{};
-      final students = <Student>[];
-      for (final e in list) {
-        final m = e as Map<String, dynamic>;
-        final student = Student(
-          id: m['id'].toString(),
-          name: m['name'] as String,
-          phone: m['phone'] as String,
-          level: m['level'] as String,
-          parentName: m['parentName'] as String,
-          studentId: m['studentId'] as String,
-        );
-        if (seenIds.add(student.id)) students.add(student);
-      }
-      return students;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return Paged.fromJson(body, Student.fromJson);
     } catch (_) {
       return null;
     }
   }
 
-  /// GET /groups — null when the request failed, see [getStudents].
+  /// GET /call-tracker/groups — every group, unpaginated. Null on failure.
+  /// Carries no roster; see [getGroupStudents].
   static Future<List<Group>?> getGroups() async {
     try {
       final res = await http.get(
@@ -94,22 +95,42 @@ class ApiService {
       );
       if (res.statusCode != 200) return null;
       final list = jsonDecode(res.body) as List<dynamic>;
-      return list.map((e) {
-        final m = e as Map<String, dynamic>;
-        return Group(
-          name: m['name'] as String,
-          studentCount: m['studentCount'] as int,
-          studentIds: (m['studentIds'] as List<dynamic>)
-              .map((id) => id.toString())
-              .toList(),
-        );
-      }).toList();
+      return list
+          .map((e) => Group.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return null;
     }
   }
 
-  /// POST /calls
+  /// GET /groups/:id/students — the roster for one group. Null on failure.
+  ///
+  /// This one is NOT a call-tracker route: it sits at the host root and wraps
+  /// its payload in the app-wide `{success, message, data}` envelope, so the
+  /// page lives at `data`, one level deeper than the call-tracker endpoints.
+  static Future<Paged<Student>?> getGroupStudents(
+    String groupId, {
+    int page = 1,
+    int limit = studentsPageSize,
+  }) async {
+    try {
+      final uri = Uri.parse('$_host/groups/$groupId/students')
+          .replace(queryParameters: {'page': '$page', 'limit': '$limit'});
+      final res = await http.get(uri, headers: await _authHeaders());
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final inner = body['data'] as Map<String, dynamic>?;
+      if (inner == null) return null;
+      return Paged.fromJson(inner, Student.fromJson);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// POST /call-tracker/calls — log one finished call.
+  ///
+  /// The backend recomputes the verdict from these fields; anything the client
+  /// sent as a verdict would be ignored, so none is sent.
   static Future<Map<String, dynamic>?> submitCall({
     required String studentId,
     required String studentName,
@@ -122,28 +143,33 @@ class ApiService {
     required bool likelyHungUpEarly,
     required bool endedQuickly,
     required String finalResult,
-    required bool isFinal,
+    required int startedAtEpochMs,
+    required int endedAtEpochMs,
   }) async {
-    final res = await http.post(
-      Uri.parse('$_baseUrl/calls'),
-      headers: await _authHeaders(),
-      body: jsonEncode({
-        'studentId': studentId,
-        'studentName': studentName,
-        'reason': reason,
-        'outcome': outcome,
-        'notes': notes,
-        'reallyDialed': reallyDialed,
-        'talkDurationSeconds': talkDurationSeconds,
-        'ringSessionSeconds': ringSessionSeconds,
-        'likelyHungUpEarly': likelyHungUpEarly,
-        'endedQuickly': endedQuickly,
-        'finalResult': finalResult,
-        'isFinal': isFinal,
-      }),
-    );
-
-    if (res.statusCode != 201) return null;
-    return jsonDecode(res.body) as Map<String, dynamic>;
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/calls'),
+        headers: await _authHeaders(),
+        body: jsonEncode({
+          'studentId': studentId,
+          'studentName': studentName,
+          'reason': reason,
+          'outcome': outcome,
+          'notes': notes,
+          'reallyDialed': reallyDialed,
+          'talkDurationSeconds': talkDurationSeconds,
+          'ringSessionSeconds': ringSessionSeconds,
+          'likelyHungUpEarly': likelyHungUpEarly,
+          'endedQuickly': endedQuickly,
+          'finalResult': finalResult,
+          'startedAtEpochMs': startedAtEpochMs,
+          'endedAtEpochMs': endedAtEpochMs,
+        }),
+      );
+      if (res.statusCode != 201) return null;
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
   }
 }
