@@ -3,7 +3,6 @@ import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
-import 'package:call_tracker/ui/views/root/root_view.dart';
 import 'package:call_tracker/ui/widgets/custom_button.dart';
 import 'package:call_tracker/ui/widgets/custom_input.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
@@ -23,6 +22,15 @@ class _LoginViewState extends State<LoginView> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // Shown once when the session ended on its own, so the agent knows why
+    // they're back here rather than assuming the app logged them out at random.
+    _error = AuthService.endedReason;
+    AuthService.endedReason = null;
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -40,16 +48,14 @@ class _LoginViewState extends State<LoginView> {
       _loading = true;
       _error = null;
     });
-    final agent = await AuthService.login(email, password);
+    final failure = await AuthService.signIn(email, password);
     if (!mounted) return;
-    if (agent == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Incorrect email or password.';
-      });
-      return;
-    }
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const RootView()));
+    // On success AuthService flips the signed-in state and AuthGate swaps this
+    // screen out — nothing to navigate to from here.
+    setState(() {
+      _loading = false;
+      _error = failure?.message;
+    });
   }
 
   @override

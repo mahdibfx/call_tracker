@@ -3,8 +3,27 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/models.dart';
 
+/// Why a sign-in attempt failed. The backend distinguishes these, so the
+/// agent should see the real reason rather than "wrong password" for
+/// everything — a blocked account and a dead connection look nothing alike.
+enum LoginFailure {
+  invalidCredentials('Incorrect email or password.'),
+  blocked('This account has been blocked. Contact your supervisor.'),
+  network("Can't reach the server — check your connection and try again."),
+  server('Something went wrong. Please try again in a moment.');
+
+  const LoginFailure(this.message);
+  final String message;
+}
+
 class ApiService {
   static const _host = 'https://backendelameed.onrender.com';
+
+  /// Called when the backend rejects our token — it has expired, or the agent
+  /// was blocked since it was issued (the backend re-checks on every request).
+  /// Wired up in `main.dart`; without it an expired session would leave every
+  /// screen silently stuck on stale data with no way back to the login screen.
+  static Future<void> Function()? onUnauthorized;
 
   /// Call-tracker routes. These return plain JSON bodies — no `{success,
   /// message, data}` envelope, unlike the rest of the API (see [getGroupStudents]).
@@ -37,25 +56,53 @@ class ApiService {
     };
   }
 
-  /// POST /auth/login — returns Agent on success, null on failure.
-  static Future<Agent?> login(String email, String password) async {
+  /// True when the response means our token is no longer good. Announces the
+  /// dead session so the app can send the agent back to the login screen.
+  ///
+  /// Only for authenticated calls — a 401 from [login] means a bad password,
+  /// not a dead session, and must not trigger this.
+  static Future<bool> _isUnauthorized(http.Response res) async {
+    if (res.statusCode != 401) return false;
+    await onUnauthorized?.call();
+    return true;
+  }
+
+  /// POST /auth/login. Returns the agent on success, otherwise why it failed.
+  static Future<({Agent? agent, LoginFailure? failure})> login(
+    String email,
+    String password,
+  ) async {
+    final http.Response res;
     try {
-      final res = await http.post(
+      res = await http.post(
         Uri.parse('$_baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
-      if (res.statusCode != 200) return null;
+    } catch (_) {
+      return (agent: null, failure: LoginFailure.network);
+    }
+
+    if (res.statusCode == 401) {
+      return (agent: null, failure: LoginFailure.invalidCredentials);
+    }
+    if (res.statusCode == 403) return (agent: null, failure: LoginFailure.blocked);
+    if (res.statusCode != 200) return (agent: null, failure: LoginFailure.server);
+
+    try {
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       await _saveToken(json['token'] as String);
       final agentJson = json['agent'] as Map<String, dynamic>;
-      return Agent(
-        id: agentJson['id'].toString(),
-        name: agentJson['name'] as String,
-        email: agentJson['email'] as String,
+      return (
+        agent: Agent(
+          id: agentJson['id'].toString(),
+          name: agentJson['name'] as String,
+          email: agentJson['email'] as String,
+        ),
+        failure: null,
       );
     } catch (_) {
-      return null;
+      return (agent: null, failure: LoginFailure.server);
     }
   }
 
@@ -77,6 +124,7 @@ class ApiService {
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
       });
       final res = await http.get(uri, headers: await _authHeaders());
+      if (await _isUnauthorized(res)) return null;
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return Paged.fromJson(body, Student.fromJson);
@@ -93,6 +141,7 @@ class ApiService {
         Uri.parse('$_baseUrl/groups'),
         headers: await _authHeaders(),
       );
+      if (await _isUnauthorized(res)) return null;
       if (res.statusCode != 200) return null;
       final list = jsonDecode(res.body) as List<dynamic>;
       return list
@@ -117,6 +166,7 @@ class ApiService {
       final uri = Uri.parse('$_host/groups/$groupId/students')
           .replace(queryParameters: {'page': '$page', 'limit': '$limit'});
       final res = await http.get(uri, headers: await _authHeaders());
+      if (await _isUnauthorized(res)) return null;
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       final inner = body['data'] as Map<String, dynamic>?;
@@ -166,6 +216,7 @@ class ApiService {
           'endedAtEpochMs': endedAtEpochMs,
         }),
       );
+      if (await _isUnauthorized(res)) return null;
       if (res.statusCode != 201) return null;
       return jsonDecode(res.body) as Map<String, dynamic>;
     } catch (_) {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
-import 'package:call_tracker/ui/views/login/login_view.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
 
 /// Shared top bar: leading icon (menu or back) + title + profile circle.
@@ -68,12 +67,9 @@ class _ProfileAvatar extends StatelessWidget {
       ),
     );
     if (confirmed != true) return;
-    await AuthService.logout();
-    if (!context.mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginView()),
-      (route) => false,
-    );
+    // AuthGate watches the signed-in state and swaps in the login screen, so
+    // there is nothing to navigate to here.
+    await AuthService.signOut();
   }
 
   @override
