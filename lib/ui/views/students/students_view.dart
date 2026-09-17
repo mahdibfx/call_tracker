@@ -201,13 +201,6 @@ class _StudentRow extends StatelessWidget {
   final Student student;
   final VoidCallback onTap;
 
-  static String _formatDate(DateTime date) {
-    final d = date.toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    return '$dd/$mm/${d.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final lastCall = student.lastCall;
@@ -246,7 +239,7 @@ class _StudentRow extends StatelessWidget {
                       children: [
                         const Icon(Icons.history, size: 13, color: AppColors.secondaryColor),
                         horizontalSpaceTiny,
-                        CustomText.subtitle(text: 'Called at ${_formatDate(lastCall.date)}'),
+                        CustomText.subtitle(text: 'Called at ${lastCall.formattedDate}'),
                       ],
                     ),
                   ],

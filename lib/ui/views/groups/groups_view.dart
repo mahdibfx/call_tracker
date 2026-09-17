@@ -271,7 +271,42 @@ class _GroupCard extends StatelessWidget {
                             children: [
                               AvatarCircle(name: s.name, size: 36),
                               horizontalSpaceSmall,
-                              Expanded(child: CustomText.bodyBold(text: s.name, fontSize: 14)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CustomText.bodyBold(text: s.name, fontSize: 14, maxLines: 1),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.call, size: 12, color: AppColors.secondaryColor),
+                                        horizontalSpaceTiny,
+                                        Expanded(
+                                          child: CustomText.subtitle(
+                                            text: s.hasPhone ? s.phone : 'No number on file',
+                                            maxLines: 1,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (s.lastCall != null) ...[
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.history, size: 12, color: AppColors.secondaryColor),
+                                          horizontalSpaceTiny,
+                                          Expanded(
+                                            child: CustomText.subtitle(
+                                              text: 'Called at ${s.lastCall!.formattedDate}',
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
                               const Icon(Icons.chevron_right, color: AppColors.secondaryColor, size: 18),
                             ],
                           ),

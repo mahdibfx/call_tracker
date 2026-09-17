@@ -96,4 +96,16 @@ void main() {
     expect(page.totalPages, 23);
     expect(page.hasMore, isTrue);
   });
+
+  test('LastCall formats the date the way both lists show it', () {
+    final student = Student.fromJson({
+      'student_id': 1,
+      'first_name': 'A',
+      'last_name': 'B',
+      'phone_numbers': <dynamic>[],
+      'last_call': {'date': '2027-01-02T10:32:00.000Z'},
+    });
+
+    expect(student.lastCall!.formattedDate, '02/01/2027');
+  });
 }

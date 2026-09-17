@@ -73,6 +73,14 @@ class LastCall {
   final String? outcome;
   final String? summary;
 
+  /// `02/01/2027` — the form shown under a student's name in both lists.
+  String get formattedDate {
+    final d = date.toLocal();
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm/${d.year}';
+  }
+
   static LastCall? fromJson(Map<String, dynamic>? json) {
     if (json == null) return null;
     final raw = json['date'];
