@@ -385,3 +385,59 @@ class Group {
         state: (json['state'] as String?)?.trim() ?? '',
       );
 }
+
+/// One past call to a student, from `GET /ManagementStudent/student-calls/:id`.
+///
+/// Deliberately carries no `verdict` / `final_result` / early-hangup flags:
+/// this is agent-facing, and no screen in the app renders a verdict.
+class StudentCall {
+  const StudentCall({
+    required this.id,
+    required this.when,
+    required this.talkDurationSeconds,
+    this.reason,
+    this.outcome,
+    this.notes,
+    this.calledByName,
+  });
+
+  final int id;
+  final DateTime when;
+  final int talkDurationSeconds;
+
+  /// Free text from the backend, already in the wording the agent picked —
+  /// kept as strings so a new reason or outcome server-side doesn't crash us.
+  final String? reason;
+  final String? outcome;
+  final String? notes;
+
+  /// Who placed the call. Null when that agent no longer exists.
+  final String? calledByName;
+
+  bool get wasAnswered => talkDurationSeconds > 0;
+
+  /// Calls sent by app versions before mid-September 2026 carry
+  /// `started_at_epoch_ms: "0"`, so `created_at` is their only real time.
+  static DateTime? _whenOf(Map<String, dynamic> json) {
+    final started = int.tryParse('${json['started_at_epoch_ms']}') ?? 0;
+    if (started > 0) return DateTime.fromMillisecondsSinceEpoch(started);
+    return DateTime.tryParse('${json['created_at']}');
+  }
+
+  /// Null for a row we can't place in time or identify — the caller drops it
+  /// rather than showing a call dated 1970.
+  static StudentCall? fromJson(Map<String, dynamic> json) {
+    final when = _whenOf(json);
+    final id = int.tryParse('${json['id']}');
+    if (when == null || id == null) return null;
+    return StudentCall(
+      id: id,
+      when: when,
+      talkDurationSeconds: (json['talk_duration_seconds'] as num?)?.toInt() ?? 0,
+      reason: json['reason'] as String?,
+      outcome: json['outcome'] as String?,
+      notes: json['notes'] as String?,
+      calledByName: (json['called_by'] as Map<String, dynamic>?)?['name'] as String?,
+    );
+  }
+}

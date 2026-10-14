@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Call tracker — testable before release</title>
+<style>
+  :root { --ink:#1f2430; --muted:#6b6f7a; --line:#e3e1da; --paper:#fafaf7; }
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--paper); margin: 0; padding: 32px 20px; }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .meta { color: var(--muted); margin: 0 0 8px; font-size: 14px; }
+  .legend { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
+
+  details { background: #fff; border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; overflow: hidden; }
+  summary { padding: 14px 18px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 16px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; color: var(--muted); font-size: 13px; flex: none; transition: transform .15s; }
+  details[open] > summary::before { transform: rotate(90deg); }
+  details[open] > summary { border-bottom: 1px solid var(--line); }
+  summary:hover { background: #fcfbf8; }
+  .title { flex: 1; min-width: 0; }
+  .when { color: var(--muted); font-weight: 400; font-size: 13px; flex: none; }
+  .body { padding: 14px 18px 18px; }
+
+  /* Shipped entries are history: muted, and collapsed by default. */
+  details.shipped summary .title { color: var(--muted); }
+
+  .where { color: var(--muted); font-size: 13px; margin: 0 0 12px; font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+  .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 14px 0 4px; font-weight: 600; }
+  ol, ul { margin: 4px 0 0 20px; padding: 0; }
+  li { margin: 3px 0; }
+  p { margin: 8px 0; }
+  code { background: #efede6; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 14px; }
+  th, td { text-align: start; border-bottom: 1px solid var(--line); padding: 7px 8px; vertical-align: top; }
+  th { background: #f1efe8; }
+  .pass { background: #eaf7ee; border-left: 3px solid #2e9e57; padding: 8px 12px; border-radius: 4px; margin-top: 10px; }
+  .need { background: #fff7e0; border-left: 3px solid #fdbd10; padding: 8px 12px; border-radius: 4px; margin-top: 10px; }
+  .stop { background: #fdecea; border-left: 3px solid #d64535; padding: 8px 12px; border-radius: 4px; margin-top: 10px; }
+
+  .tag { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; flex: none; white-space: nowrap; }
+  .t-device { background: #fdecea; color: #b5342a; }
+  .t-done   { background: #eaf7ee; color: #1d7a41; }
+  .t-ship   { background: #eceaf5; color: #4a4570; }
+  .t-block  { background: #fdecea; color: #b5342a; }
+</style>
+</head>
+<body>
+<main>
+<h1>Call tracker — testable before release</h1>
+<p class="meta">Branch <code>main</code> · agent app for El Ameed. Newest first.</p>
+<p class="legend">
+  <span class="tag t-device">needs device</span> unit-tested and analyzer-clean, but nobody has seen it on a screen ·
+  <span class="tag t-done">verified</span> driven and confirmed ·
+  <span class="tag t-ship">shipped</span> released — kept as history, collapsed
+</p>
+
+<!-- NEW ENTRIES GO DIRECTLY BELOW THIS LINE (newest first).
+     After a release: swap the entry's tag to `t-ship`, add class="shipped" to
+     its <details>, and remove the `open` attribute so it folds into history. -->
+
+<details open>
+  <summary><span class="title">Per-student call log</span><span class="when">14 Oct</span><span class="tag t-block">blocked on backend</span></summary>
+  <div class="body">
+    <p class="where">lib/data/models.dart · lib/data/api_service.dart · lib/ui/views/student_calls/student_calls_view.dart · lib/ui/views/student_detail/student_detail_view.dart</p>
+
+    <p><b>What changed.</b> The client wanted a call log per student rather than the global one. The history icon on the student detail card was decorative — it now opens a Call Log screen listing every call ever made to that student, by anyone, newest first, from <code>GET /ManagementStudent/student-calls/:id</code>. Pull to refresh.</p>
+
+    <p>Each row shows date and time, talk duration (or "Not answered"), reason, who placed the call (<code>called_by.name</code>), the outcome as a pill, and the agent's notes.</p>
+
+    <p>Per the project rule, nothing verdict-derived is rendered: <code>verdict</code>, <code>final_result</code>, <code>likely_hung_up_early</code> and <code>ended_quickly</code> come back in the payload and are deliberately not parsed. The existing History tab (the agent's own calls, read from the device) is unchanged.</p>
+
+    <div class="stop">
+      <b>Blocked: the backend refuses the app's token.</b> <code>GET /ManagementStudent/student-calls/:id</code> returns
+      <code>403 Forbidden — insufficient permissions</code> for the agent token issued by
+      <code>POST /call-tracker/auth/login</code>. It returns <code>200</code> for an office token from
+      <code>POST /auth/login</code>. Until the guard accepts agent tokens, this screen shows
+      "Couldn't load the call log — pull down to retry."
+      <br><br>
+      Same cause breaks <code>GET /groups/:id/students</code> (the group roster, which previously worked) — also
+      <code>403</code> for the agent token now.
+    </div>
+
+    <div class="lbl">How to test (once the backend accepts agent tokens)</div>
+    <ol>
+      <li>Sign in as an agent, open Students, tap any student.</li>
+      <li>Tap the history icon at the top right of the student card.</li>
+      <li>A student who has been called shows the list newest first; check the duration reads "Not answered" for a 0-second call.</li>
+      <li>Pull down to refresh.</li>
+      <li>Open a student nobody has called — expect "No calls to this student yet.", still pull-to-refreshable.</li>
+      <li>Confirm no row mentions a verdict, a flag, or anything about a call-log check.</li>
+    </ol>
+
+    <div class="lbl">Already covered by tests</div>
+    <ul>
+      <li><code>test/student_call_test.dart</code> — 5 checks against the documented row: epoch arriving as a string, the <code>"0"</code> epoch falling back to <code>created_at</code> for pre-September calls, unusable rows dropped instead of dated 1970, missing <code>called_by</code>, and talk time (not the verdict fields) deciding answered.</li>
+      <li><code>flutter analyze</code> clean · <code>flutter test</code> 30/30.</li>
+    </ul>
+
+    <div class="need">
+      Verified against the live endpoint with an office token, so the parsing matches real data (including Arabic names).
+      Nobody has seen the screen on a handset.
+    </div>
+  </div>
+</details>
+
+</main>
+</body>
+</html>

@@ -4,6 +4,7 @@ import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
 import 'package:call_tracker/ui/views/call/call_view.dart';
+import 'package:call_tracker/ui/views/student_calls/student_calls_view.dart';
 import 'package:call_tracker/ui/widgets/app_top_bar.dart';
 import 'package:call_tracker/ui/widgets/custom_button.dart';
 import 'package:call_tracker/ui/widgets/custom_input.dart';
@@ -68,10 +69,19 @@ class _StudentDetailViewState extends State<StudentDetailView> {
                       ),
                       child: CustomText.caption(text: widget.groupName ?? student.level, textColor: AppColors.primaryColor),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(color: AppColors.backgroundColor, shape: BoxShape.circle),
-                      child: const Icon(Icons.history, color: AppColors.secondaryColor, size: 18),
+                    InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => StudentCallsView(student: student)),
+                      ),
+                      customBorder: const CircleBorder(),
+                      child: Tooltip(
+                        message: 'Call log',
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(color: AppColors.backgroundColor, shape: BoxShape.circle),
+                          child: const Icon(Icons.history, color: AppColors.primaryColor, size: 18),
+                        ),
+                      ),
                     ),
                   ],
                 ),

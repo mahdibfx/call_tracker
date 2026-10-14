@@ -177,6 +177,32 @@ class ApiService {
     }
   }
 
+  /// GET /ManagementStudent/student-calls/:id — every call ever made to one
+  /// student, newest first, unpaginated. Null on failure.
+  ///
+  /// Another root-level envelope route, like [getGroupStudents]. Note the
+  /// backend currently refuses call-tracker agent tokens here with 403, so
+  /// this returns null until that guard accepts them.
+  static Future<List<StudentCall>?> getStudentCalls(String studentId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$_host/ManagementStudent/student-calls/$studentId'),
+        headers: await _authHeaders(),
+      );
+      if (await _isUnauthorized(res)) return null;
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = body['data'] as List<dynamic>?;
+      if (list == null) return null;
+      return list
+          .map((e) => StudentCall.fromJson(e as Map<String, dynamic>))
+          .whereType<StudentCall>()
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// POST /call-tracker/calls — log one finished call.
   ///
   /// The backend recomputes the verdict from these fields; anything the client
