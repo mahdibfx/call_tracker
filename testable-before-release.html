@@ -48,8 +48,8 @@
 </head>
 <body>
 <main>
-<h1>Call tracker — testable before release</h1>
-<p class="meta">Branch <code>main</code> · agent app for El Ameed. Newest first.</p>
+<h1>El Ameed Staff — testable before release</h1>
+<p class="meta">Branch <code>main</code> · staff app for El Ameed: calls and problem reports, by role. Newest first.</p>
 <p class="legend">
   <span class="tag t-device">needs device</span> unit-tested and analyzer-clean, but nobody has seen it on a screen ·
   <span class="tag t-done">verified</span> driven and confirmed ·
@@ -61,7 +61,85 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
-  <summary><span class="title">Per-student call log</span><span class="when">14 Oct</span><span class="tag t-block">blocked on backend</span></summary>
+  <summary><span class="title">Choose which number to ring</span><span class="when">27 Oct</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/ui/views/student_detail/widgets/number_picker_sheet.dart · student_detail_view.dart · call_view.dart · call_monitor.dart · models.dart · students_view.dart · groups_view.dart</p>
+
+    <p><b>What changed.</b> Students can have more than one number on file (a personal line and a parent line). The app used to pick one silently. Now: one number dials straight away as before, and two or more opens a sheet listing each line with its personal/parent label. The line the app would have picked — the parent, who is who agents are usually ringing — is highlighted with a tick. One tap places the call; there is no confirm button.</p>
+
+    <p>List rows now read <code>0782720884&nbsp;&nbsp;+1</code> when a student has other lines, so the choice is not a surprise. The finished-call summary shows the number actually rung rather than re-running the precedence rules.</p>
+
+    <div class="need">
+      <b>Why this one needs real-device attention.</b> <code>CallMonitor.reconcile</code> finds the call in the device's call log <em>by the dialed string</em>. The chosen number is now passed down explicitly — picker → <code>CallView</code> → <code>PendingCall</code> → dialer → lookup — and is never re-derived. If it ever diverged, a parent-line call would be looked up under the personal number, come back missing, and flag the agent for a call they really made. Unit tests pin the thread, but only a real call proves it.
+    </div>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Open a student with two numbers — e.g. 102 مريم البتول, 196 شهد, or 197 أيوب on the live roster.</li>
+      <li>Confirm the list row showed <code>+1</code> before you opened them.</li>
+      <li>Tap Start Call: the sheet lists both lines, the parent one ticked.</li>
+      <li>Pick the <b>parent</b> line and let the call connect, then end it. The summary must show the parent number, and the call must <em>not</em> come back flagged as never placed.</li>
+      <li>Repeat picking the <b>personal</b> line — same check.</li>
+      <li>Dismiss the sheet by tapping outside: no call should be placed.</li>
+      <li>Open a student with one number: it must dial immediately, with no sheet.</li>
+      <li>Force-close the app mid-call on a parent-line call, then reopen it: the recovered summary must still show the parent number.</li>
+    </ol>
+
+    <div class="lbl">Covered by tests</div>
+    <ul>
+      <li><code>test/number_picker_test.dart</code> — 12 checks: the one-line vs multi-line branch, the parent being the suggested line, <code>phoneSummary</code>, <code>PendingCall</code> round-tripping both the number and which line it was, a pre-picker record defaulting to personal, the summary narrowing, and three widget tests on the sheet (renders both lines labelled, one tap returns the non-suggested line, dismissal returns null).</li>
+    </ul>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="title">Staff app: one login, routed by role</span><span class="when">27 Oct</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/data/models.dart · api_service.dart · auth_service.dart · main.dart · lib/ui/views/root/app_area.dart · root_view.dart · bottom_nav_bar.dart · app_top_bar.dart</p>
+
+    <p><b>What changed.</b> The app is now the staff app. Login moved to the unified <code>POST /Auth/login</code>, which returns the account's role and whether it is a call-tracker agent, and issues one token that works on every route the app uses. What the user sees is decided from that:</p>
+
+    <table>
+      <tr><th>Role</th><th>With an agent id</th><th>Without</th></tr>
+      <tr><td>admin · team onsite · team online</td><td>Calls, Groups, History, Reports</td><td>Reports only</td></tr>
+      <tr><td>cleaner · maintenance</td><td>—</td><td>Reports only</td></tr>
+      <tr><td>teacher</td><td colspan="2">refused, pointed at the Teachers app</td></tr>
+    </table>
+
+    <p>Calls keys on <code>agent_id</code>, not seniority: <code>POST /call-tracker/calls</code> refuses accounts without one, so an admin who was never provisioned as an agent gets no dialer rather than a dialer that fails on submit. Roles with a single area get that screen with no bottom bar. The top bar now shows who is signed in — initials and role — in the slot that used to hold a hamburger that did nothing. The Dashboard tab is gone from the shell (the file is kept; it was an undesigned placeholder).</p>
+
+    <div class="stop">
+      <b>Test this before anything else ships.</b> On a device that already has the <em>old</em> build installed, upgrade in place and open the app. The stored session predates roles, so it is completed against <code>POST /Token/verifyToken</code> using the existing token — the user should land in the app <b>without signing in again</b>, after a brief spinner. If they get bounced to the login screen, the migration did not work and every agent in the field will be signed out by this release.
+    </div>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li><b>Upgrade path</b> (above) — the highest-risk item in this release.</li>
+      <li>Sign in as an agent-enabled office account: four tabs, calls behave exactly as before.</li>
+      <li>Sign in as a cleaner or maintenance account: Reports only, no bottom bar, and the top-right avatar still logs out — it is their only chrome.</li>
+      <li>Sign in as a teacher: refused, with the message naming the Teachers app, and no session left behind (reopening the app must not let them in).</li>
+      <li>Check the launcher icon label now reads <b>El Ameed Staff</b>, and the login screen says <b>Staff Login</b> rather than naming the call tracker.</li>
+    </ol>
+
+    <div class="lbl">Covered by tests</div>
+    <ul>
+      <li><code>test/staff_role_test.dart</code> — the role normaliser (<code>team onsite</code> and <code>team_onsite</code> resolving alike), the login payload parser, and session round-tripping.</li>
+      <li><code>test/app_area_test.dart</code> — which areas each role gets, including an admin without an agent id getting no dialer, and a loop so a seventh role added later inherits the rule.</li>
+      <li><code>test/auth_flow_test.dart</code> — a pre-role session restores without throwing; corrupt sessions are discarded rather than crashing startup (this path previously could leave the app with no first frame at all).</li>
+    </ul>
+
+    <div class="pass">
+      Verified against production with curl: the unified token returns 200 on <code>/call-tracker/students</code>, <code>/call-tracker/groups</code>, <code>/ManagementStudent/student-calls/:id</code>, <code>/groups/:id/students</code>, <code>/reports</code>, <code>/report-categories</code>, <code>/rooms</code> and <code>/devices</code>. This retires the 403 that blocked the per-student call log below — <b>that entry is now unblocked</b>.
+    </div>
+
+    <div class="need">
+      Not yet done, tracked rather than forgotten: the Reports screens (the tab is a placeholder), camera capture for report photos, and push notifications.
+    </div>
+  </div>
+</details>
+
+<details open>
+  <summary><span class="title">Per-student call log</span><span class="when">14 Oct</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/data/models.dart · lib/data/api_service.dart · lib/ui/views/student_calls/student_calls_view.dart · lib/ui/views/student_detail/student_detail_view.dart</p>
 
@@ -71,18 +149,15 @@
 
     <p>Per the project rule, nothing verdict-derived is rendered: <code>verdict</code>, <code>final_result</code>, <code>likely_hung_up_early</code> and <code>ended_quickly</code> come back in the payload and are deliberately not parsed. The existing History tab (the agent's own calls, read from the device) is unchanged.</p>
 
-    <div class="stop">
-      <b>Blocked: the backend refuses the app's token.</b> <code>GET /ManagementStudent/student-calls/:id</code> returns
-      <code>403 Forbidden — insufficient permissions</code> for the agent token issued by
-      <code>POST /call-tracker/auth/login</code>. It returns <code>200</code> for an office token from
-      <code>POST /auth/login</code>. Until the guard accepts agent tokens, this screen shows
-      "Couldn't load the call log — pull down to retry."
-      <br><br>
-      Same cause breaks <code>GET /groups/:id/students</code> (the group roster, which previously worked) — also
-      <code>403</code> for the agent token now.
+    <div class="pass">
+      <b>Unblocked as of 27 Oct.</b> The 403 came from the retired
+      <code>POST /call-tracker/auth/login</code> token. The app now signs in through the unified
+      <code>POST /Auth/login</code>, whose token returns <code>200</code> on both
+      <code>GET /ManagementStudent/student-calls/:id</code> and <code>GET /groups/:id/students</code>
+      — confirmed with curl against production. Both this screen and the group roster should now load.
     </div>
 
-    <div class="lbl">How to test (once the backend accepts agent tokens)</div>
+    <div class="lbl">How to test</div>
     <ol>
       <li>Sign in as an agent, open Students, tap any student.</li>
       <li>Tap the history icon at the top right of the student card.</li>

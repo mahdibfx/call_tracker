@@ -229,7 +229,7 @@ class _StudentRow extends StatelessWidget {
                       const Icon(Icons.call, size: 13, color: AppColors.secondaryColor),
                       horizontalSpaceTiny,
                       CustomText.subtitle(
-                        text: student.hasPhone ? student.phone : 'No number on file',
+                        text: student.phoneSummary,
                       ),
                     ],
                   ),

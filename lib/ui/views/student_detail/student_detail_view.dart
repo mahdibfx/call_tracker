@@ -5,6 +5,7 @@ import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
 import 'package:call_tracker/ui/views/call/call_view.dart';
 import 'package:call_tracker/ui/views/student_calls/student_calls_view.dart';
+import 'package:call_tracker/ui/views/student_detail/widgets/number_picker_sheet.dart';
 import 'package:call_tracker/ui/widgets/app_top_bar.dart';
 import 'package:call_tracker/ui/widgets/custom_button.dart';
 import 'package:call_tracker/ui/widgets/custom_input.dart';
@@ -37,6 +38,35 @@ class _StudentDetailViewState extends State<StudentDetailView> {
   void dispose() {
     _noteController.dispose();
     super.dispose();
+  }
+
+  /// Picks the line to ring, then hands it to [CallView].
+  ///
+  /// Most students have exactly one number, so that case dials straight away;
+  /// asking would be a tap for nothing. With two or more — typically a
+  /// personal and a parent line — the agent chooses, because which one they
+  /// meant is not inferable.
+  Future<void> _startCall(Student student) async {
+    final phones = student.phones;
+    StudentPhone chosen;
+    if (phones.length == 1) {
+      chosen = phones.single;
+    } else {
+      final picked = await showNumberPicker(context, student);
+      if (picked == null) return; // dismissed
+      chosen = picked;
+    }
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CallView(
+          student: student,
+          reason: _selectedReason,
+          number: chosen.number,
+          numberType: chosen.type,
+        ),
+      ),
+    );
   }
 
   @override
@@ -137,9 +167,7 @@ class _StudentDetailViewState extends State<StudentDetailView> {
           CustomButton(
             text: 'Start Call',
             icon: Icons.call,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => CallView(student: student, reason: _selectedReason)),
-            ),
+            onPressed: student.hasPhone ? () => _startCall(student) : null,
           ),
         ],
       ),

@@ -19,10 +19,28 @@ import 'package:call_tracker/ui/widgets/custom_text.dart';
 /// to end, via phone_state while foregrounded and via the call log once
 /// the agent returns to the app (or reopens it, even after a process kill).
 class CallView extends StatefulWidget {
-  const CallView({super.key, required this.student, required this.reason});
+  const CallView({
+    super.key,
+    required this.student,
+    required this.reason,
+    required this.number,
+    this.numberType = 'personal',
+  });
 
   final Student student;
   final CallReason reason;
+
+  /// The line to ring, chosen before this screen opened.
+  ///
+  /// Required rather than defaulted to `student.phone`: the same string has to
+  /// reach the dialer, the pending record and the call-log lookup, and a
+  /// default would let a caller silently skip the choice and reintroduce the
+  /// mismatch this parameter exists to prevent.
+  final String number;
+
+  /// `personal` or `parent`, carried through so the finished call can say
+  /// which line was reached.
+  final String numberType;
 
   @override
   State<CallView> createState() => _CallViewState();
@@ -61,13 +79,14 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
       PendingCall(
         studentId: widget.student.id,
         studentName: widget.student.name,
-        number: widget.student.phone,
+        number: widget.number,
+        numberType: widget.numberType,
         startedAtEpochMs: startedAt.millisecondsSinceEpoch,
         reason: widget.reason,
       ),
     );
 
-    final placed = await NativeCallService.placeCall(widget.student.phone);
+    final placed = await NativeCallService.placeCall(widget.number);
     if (!placed) {
       await CallMonitor.clearPending();
       if (!mounted) return;
@@ -124,7 +143,13 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => CallSummaryView(
-          student: widget.student,
+          // Narrowed to the line that was actually rung, so the summary cannot
+          // show a different number than the one dialed. This is the same
+          // shape the post-process-kill path in `RootView` rebuilds.
+          student: widget.student.onlyPhone(
+            number: pending.number,
+            type: pending.numberType,
+          ),
           reason: widget.reason,
           durationSeconds: verification.talkDurationSeconds,
           verification: verification,
@@ -194,7 +219,7 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
               verticalSpaceMedium,
               CustomText.title(text: widget.student.name, fontSize: 20),
               const SizedBox(height: 4),
-              CustomText.subtitle(text: widget.student.phone),
+              CustomText.subtitle(text: widget.number),
               verticalSpaceMedium,
               Container(
                 padding: const EdgeInsets.symmetric(

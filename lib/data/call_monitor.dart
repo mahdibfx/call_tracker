@@ -13,11 +13,21 @@ class PendingCall {
     required this.number,
     required this.startedAtEpochMs,
     required this.reason,
+    this.numberType = 'personal',
   });
 
   final String studentId;
   final String studentName;
+
+  /// The number actually dialed, exactly as it was passed to the dialer.
+  /// `CallMonitor.reconcile` looks the call up in the device's log by this
+  /// string, so it must never be re-derived from the student record.
   final String number;
+
+  /// Whether [number] was the personal or the parent line — `personal` or
+  /// `parent`, matching `StudentPhone.type`. Only used to label the call
+  /// afterwards; the dialing itself cares only about [number].
+  final String numberType;
   final int startedAtEpochMs;
   final CallReason reason;
 
@@ -25,6 +35,7 @@ class PendingCall {
         'studentId': studentId,
         'studentName': studentName,
         'number': number,
+        'numberType': numberType,
         'startedAtEpochMs': startedAtEpochMs,
         'reason': reason.name,
       };
@@ -33,6 +44,9 @@ class PendingCall {
         studentId: json['studentId'] as String,
         studentName: json['studentName'] as String? ?? '',
         number: json['number'] as String,
+        // Absent for a call that was in flight when an older build was
+        // upgraded; those all predate the picker, so personal is right.
+        numberType: json['numberType'] as String? ?? 'personal',
         startedAtEpochMs: json['startedAtEpochMs'] as int,
         reason: CallReason.values.byName(json['reason'] as String),
       );

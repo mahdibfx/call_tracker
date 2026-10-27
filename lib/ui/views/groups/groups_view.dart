@@ -283,7 +283,7 @@ class _GroupCard extends StatelessWidget {
                                         horizontalSpaceTiny,
                                         Expanded(
                                           child: CustomText.subtitle(
-                                            text: s.hasPhone ? s.phone : 'No number on file',
+                                            text: s.phoneSummary,
                                             maxLines: 1,
                                           ),
                                         ),
