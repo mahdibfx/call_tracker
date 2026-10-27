@@ -4,6 +4,7 @@ import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/views/login/login_view.dart';
+import 'package:call_tracker/ui/views/root/app_area.dart';
 import 'package:call_tracker/ui/views/root/root_view.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -46,8 +47,12 @@ class MainApp extends StatelessWidget {
   }
 }
 
-/// Shows the login screen until an agent is signed in, and swaps back the
+/// Shows the login screen until someone is signed in, and swaps back the
 /// moment the session ends — no screen has to navigate to or from login.
+///
+/// Also decides which areas of the app the signed-in staff member gets. It may
+/// assume the user is not a teacher: teachers are refused in `AuthService`,
+/// both at login and when a stored session is re-checked.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -55,8 +60,24 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Agent?>(
       valueListenable: AuthService.signedIn,
-      builder: (context, agent, _) =>
-          agent != null ? const RootView() : const LoginView(),
+      builder: (context, user, _) {
+        if (user == null) return const LoginView();
+        // A session stored before roles existed. `AuthService.restore` is
+        // completing it against the backend; there is nothing to route on
+        // until it does.
+        if (user.role == null) return const _SessionLoadingView();
+        return RootView(areas: AppArea.forUser(user));
+      },
     );
   }
+}
+
+class _SessionLoadingView extends StatelessWidget {
+  const _SessionLoadingView();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        backgroundColor: AppColors.backgroundColor,
+        body: Center(child: CircularProgressIndicator()),
+      );
 }

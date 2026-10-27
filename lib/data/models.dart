@@ -23,19 +23,133 @@ enum CallOutcome {
   final String label;
 }
 
-class Agent {
-  const Agent({required this.id, required this.name, required this.email});
+/// A staff role, as the backend defines them.
+///
+/// The wire format differs by endpoint: `/Auth/login` spells it with a space
+/// (`team onsite`), while `report_categories.role` uses an underscore
+/// (`team_onsite`). [parse] accepts either, and nothing else in the app may
+/// compare a role to a raw string — that is what keeps the two spellings from
+/// ever being compared directly.
+enum StaffRole {
+  admin('admin', 'Admin'),
+  teamOnsite('team onsite', 'Team Onsite'),
+  teamOnline('team online', 'Team Online'),
+  teacher('teacher', 'Teacher'),
+  cleaner('cleaner', 'Cleaner'),
+  maintenance('maintenance', 'Maintenance');
 
+  const StaffRole(this.label, this.displayLabel);
+
+  /// As `/Auth/login` spells it.
+  final String label;
+
+  /// For app chrome.
+  final String displayLabel;
+
+  /// The underscored form, which is what `report_categories.role` returns and
+  /// what we persist. Stable across the two wire spellings.
+  String get code => label.replaceAll(' ', '_');
+
+  /// Accepts `team onsite`, `team_onsite`, `Team Onsite`, `TEAM-ONSITE`.
+  ///
+  /// Returns null for anything unrecognised: a seventh role added server-side
+  /// must not crash an app that is already installed.
+  static StaffRole? parse(Object? raw) {
+    if (raw == null) return null;
+    final key = raw.toString().trim().toLowerCase().replaceAll(RegExp(r'[\s\-]+'), '_');
+    for (final role in values) {
+      if (role.code == key) return role;
+    }
+    return null;
+  }
+}
+
+/// The signed-in staff member. Still called `Agent` because that is what it is
+/// on the calls side; it now carries the role that decides which areas of the
+/// app they see at all.
+class Agent {
+  const Agent({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.role,
+    this.userId,
+    this.agentId,
+    this.job,
+    this.permissions = const [],
+  });
+
+  /// The `account_id`, stringified.
   final String id;
   final String name;
   final String email;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'email': email};
+  /// Null only for a session restored from the pre-role storage format, which
+  /// is re-validated against the backend before the shell routes anywhere.
+  final StaffRole? role;
+  final String? userId;
 
+  /// Null when this account is not a registered call-tracker agent.
+  final String? agentId;
+  final String? job;
+  final List<String> permissions;
+
+  /// `POST /call-tracker/calls` rejects accounts without an agent id, so the
+  /// calls area is hidden rather than offered and then refused.
+  bool get canSeeCalls => agentId != null;
+
+  bool get isAdmin => role == StaffRole.admin;
+
+  /// Bumped whenever this shape changes, so a stored session written by an
+  /// older build is recognised as incomplete instead of being misread.
+  static const sessionVersion = 2;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'email': email,
+        'role': role?.code,
+        'user_id': userId,
+        'agent_id': agentId,
+        'job': job,
+        'permissions': permissions,
+        'v': sessionVersion,
+      };
+
+  /// Reads a stored session. Deliberately total — every field is optional and
+  /// nothing is cast — because this runs during startup, before `runApp`, and
+  /// a throw here leaves the app with no login screen to fall back to.
   factory Agent.fromJson(Map<String, dynamic> json) => Agent(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        email: json['email'] as String,
+        id: (json['id'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        email: (json['email'] ?? '').toString(),
+        role: StaffRole.parse(json['role']),
+        userId: json['user_id']?.toString(),
+        agentId: json['agent_id']?.toString(),
+        job: json['job']?.toString(),
+        permissions:
+            (json['permissions'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      );
+
+  /// True when this came from a storage format that predates roles, so it
+  /// cannot be routed and has to be re-validated against the backend first.
+  static bool isLegacyBlob(Map<String, dynamic> json) =>
+      (json['v'] as num?)?.toInt() != sessionVersion;
+
+  /// Parses the inner user object of `POST /Auth/login` and
+  /// `POST /Token/verifyToken` — both return the same shape, nested at
+  /// `body.data.data`.
+  factory Agent.fromAuthPayload(Map<String, dynamic> user) => Agent(
+        id: (user['account_id'] ?? user['user_id'] ?? '').toString(),
+        name: (user['name'] ?? '').toString(),
+        email: (user['email'] ?? '').toString(),
+        // The response carries both keys; which is canonical is undocumented.
+        role: StaffRole.parse(user['role'] ?? user['Role']),
+        userId: user['user_id']?.toString(),
+        agentId: user['agent_id']?.toString(),
+        job: user['job']?.toString(),
+        permissions:
+            (user['permissions'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
       );
 }
 
@@ -130,6 +244,27 @@ class Student {
 
   bool get hasPhone => phone.isNotEmpty;
 
+  /// What a list row shows: the number that would be dialed, plus how many
+  /// other lines are on file, so the agent knows a choice is coming before
+  /// they open the student.
+  String get phoneSummary {
+    if (!hasPhone) return 'No number on file';
+    final others = phones.length - 1;
+    return others > 0 ? '$phone  +$others' : phone;
+  }
+
+  /// A copy carrying only the line that was dialed, so [phone] returns that
+  /// number rather than re-running the precedence rules. Used once a call is
+  /// over: the summary has to show the number actually rung, which with two
+  /// lines on file is not necessarily the one [phone] would have picked.
+  Student onlyPhone({required String number, String type = 'personal'}) => Student(
+        id: id,
+        name: name,
+        level: level,
+        phones: [StudentPhone(number: number, type: type, isPrimary: true)],
+        lastCall: lastCall,
+      );
+
   factory Student.fromJson(Map<String, dynamic> json) {
     final first = (json['first_name'] ?? '').toString().trim();
     final last = (json['last_name'] ?? '').toString().trim();
@@ -158,6 +293,8 @@ class Paged<T> {
 
   bool get hasMore => page < totalPages;
 
+  /// For endpoints that wrap their page in a `pagination` object — the student
+  /// and group lists.
   static Paged<T> fromJson<T>(
     Map<String, dynamic> json,
     T Function(Map<String, dynamic>) itemFromJson,
@@ -169,6 +306,25 @@ class Paged<T> {
           .toList(),
       page: (pagination['page'] as num?)?.toInt() ?? 1,
       totalPages: (pagination['totalPages'] as num?)?.toInt() ?? 1,
+    );
+  }
+
+  /// For endpoints that put `total` / `page` / `limit` flat alongside `data`
+  /// and report no page count — `/reports`. Passing one of those to
+  /// [fromJson] silently yields page 1 of 1, which would strand every page
+  /// after the first.
+  static Paged<T> fromFlat<T>(
+    Map<String, dynamic> json,
+    T Function(Map<String, dynamic>) itemFromJson,
+  ) {
+    final total = (json['total'] as num?)?.toInt() ?? 0;
+    final limit = (json['limit'] as num?)?.toInt() ?? 0;
+    return Paged<T>(
+      items: (json['data'] as List<dynamic>? ?? [])
+          .map((e) => itemFromJson(e as Map<String, dynamic>))
+          .toList(),
+      page: (json['page'] as num?)?.toInt() ?? 1,
+      totalPages: limit > 0 ? (total / limit).ceil().clamp(1, 1 << 30) : 1,
     );
   }
 }

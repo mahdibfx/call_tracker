@@ -3,14 +3,14 @@ import 'package:call_tracker/data/call_monitor.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/ui/views/call_summary/call_summary_view.dart';
-import 'package:call_tracker/ui/views/dashboard/dashboard_view.dart';
-import 'package:call_tracker/ui/views/groups/groups_view.dart';
-import 'package:call_tracker/ui/views/history/history_view.dart';
-import 'package:call_tracker/ui/views/students/students_view.dart';
+import 'package:call_tracker/ui/views/root/app_area.dart';
 import 'package:call_tracker/ui/widgets/bottom_nav_bar.dart';
 
 class RootView extends StatefulWidget {
-  const RootView({super.key});
+  const RootView({super.key, required this.areas});
+
+  /// From `AppArea.forUser`, so the shell shows exactly what this role has.
+  final List<AppArea> areas;
 
   @override
   State<RootView> createState() => _RootViewState();
@@ -19,12 +19,7 @@ class RootView extends StatefulWidget {
 class _RootViewState extends State<RootView> with WidgetsBindingObserver {
   int _index = 0;
 
-  static const _tabs = [
-    StudentsView(),
-    GroupsView(),
-    HistoryView(),
-    DashboardView(),
-  ];
+  bool get _hasCalls => widget.areas.contains(AppArea.calls);
 
   @override
   void initState() {
@@ -32,8 +27,10 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // A call placed before the app process was killed mid-call still needs
     // reconciling against the call log so the agent can't dodge it by
-    // force-closing the app.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resumePendingCall());
+    // force-closing the app. Nobody without the calls area can have one.
+    if (_hasCalls) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _resumePendingCall());
+    }
   }
 
   @override
@@ -66,7 +63,12 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
       name: pending.studentName,
       level: '',
       phones: [
-        StudentPhone(number: pending.number, type: 'personal', isPrimary: true),
+        StudentPhone(
+          number: pending.number,
+          // The line that was actually dialed, not an assumption.
+          type: pending.numberType,
+          isPrimary: true,
+        ),
       ],
     );
     Navigator.of(context).push(
@@ -84,9 +86,25 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // A single-item nav bar is a tappable no-op taking up 60dp and implying
+    // something is missing, so roles with one area (cleaner, maintenance) get
+    // the screen on its own.
+    //
+    // ponytail: that also means `RefreshSignal` never fires from a tab change
+    // for them — their only refresh paths are app-resume and pull-to-refresh,
+    // so Reports must keep its RefreshIndicator.
+    if (widget.areas.length == 1) return widget.areas.single.screen;
+
     return Scaffold(
-      body: IndexedStack(index: _index, children: _tabs),
-      bottomNavigationBar: BottomNavBar(currentIndex: _index, onTap: _onTabTap),
+      body: IndexedStack(
+        index: _index,
+        children: [for (final area in widget.areas) area.screen],
+      ),
+      bottomNavigationBar: BottomNavBar(
+        areas: widget.areas,
+        currentIndex: _index,
+        onTap: _onTabTap,
+      ),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/auth_service.dart';
+import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
+import 'package:call_tracker/ui/widgets/avatar_circle.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
 
 /// Shared top bar: leading icon (menu or back) + title + profile circle.
@@ -11,6 +13,7 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.subtitle,
     this.onBack,
     this.trailing,
+    this.showUser = false,
   });
 
   final String title;
@@ -18,28 +21,47 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   final Widget? trailing;
 
+  /// On a root screen, show who is signed in: their initials as the leading
+  /// circle and their role under the title. Pushed screens leave this off and
+  /// get a back arrow instead.
+  final bool showUser;
+
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
+    final user = showUser ? AuthService.signedIn.value : null;
+    // Falls back to the plain title when the role is unknown, so the bar never
+    // renders an empty second line.
+    final secondLine = subtitle ?? user?.role?.displayLabel;
     return AppBar(
       backgroundColor: AppColors.backgroundColor,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
-      leading: IconButton(
-        icon: Icon(onBack != null ? Icons.arrow_back : Icons.menu, color: AppColors.textColor),
-        onPressed: onBack ?? () {},
-      ),
-      title: subtitle == null
+      leadingWidth: 56,
+      leading: switch ((onBack, user)) {
+        (final VoidCallback back, _) => IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textColor),
+            onPressed: back,
+          ),
+        (null, final Agent u) => Padding(
+            padding: const EdgeInsets.only(left: 16),
+            child: Center(child: AvatarCircle(name: u.name, size: 32)),
+          ),
+        // No back action and nobody to show: leave the slot empty rather than
+        // render an icon that does nothing.
+        (null, null) => const SizedBox.shrink(),
+      },
+      title: secondLine == null
           ? CustomText.title(text: title, fontSize: 18)
           : Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CustomText.bodyBold(text: title, fontSize: 17),
-                CustomText.caption(text: subtitle!),
+                CustomText.caption(text: secondLine),
               ],
             ),
       actions: [

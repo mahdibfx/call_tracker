@@ -4,7 +4,7 @@
 <uses-permission android:name="android.permission.READ_CALL_LOG" />
 <uses-permission android:name="android.permission.CALL_PHONE" />
     <application
-        android:label="Elameed Agents"
+        android:label="El Ameed Staff"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

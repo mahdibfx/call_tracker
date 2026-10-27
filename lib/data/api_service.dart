@@ -9,11 +9,35 @@ import 'package:call_tracker/data/models.dart';
 enum LoginFailure {
   invalidCredentials('Incorrect email or password.'),
   blocked('This account has been blocked. Contact your supervisor.'),
+  teacherAccount('Teachers use the El Ameed Teachers app. Please sign in there instead.'),
+  unsupportedRole("This account's role isn't supported in this app yet."),
   network("Can't reach the server — check your connection and try again."),
   server('Something went wrong. Please try again in a moment.');
 
   const LoginFailure(this.message);
   final String message;
+}
+
+/// The outcome of re-checking a stored token at startup. Distinguishing a dead
+/// token from a dead connection matters: one should end the session, the other
+/// should leave the cached session alone so the app still works offline.
+sealed class VerifyResult {
+  const VerifyResult();
+}
+
+class VerifyOk extends VerifyResult {
+  const VerifyOk(this.agent);
+  final Agent agent;
+}
+
+/// The backend rejected the token — expired, or the account was revoked.
+class VerifyInvalid extends VerifyResult {
+  const VerifyInvalid();
+}
+
+/// We never reached the backend. Says nothing about the token.
+class VerifyNetwork extends VerifyResult {
+  const VerifyNetwork();
 }
 
 class ApiService {
@@ -56,6 +80,23 @@ class ApiService {
     };
   }
 
+  /// JSON headers plus the bearer. For `ReportApi`, which shares this token.
+  static Future<Map<String, String>> authHeaders() => _authHeaders();
+
+  /// The bearer alone, with **no** `Content-Type`.
+  ///
+  /// Required for multipart uploads: `MultipartRequest` sets its own
+  /// `Content-Type` with the part boundary, and passing [authHeaders] would
+  /// overwrite it with `application/json`, leaving the server unable to parse
+  /// the body.
+  static Future<Map<String, String>> bearerOnly() async {
+    final token = await _getToken();
+    return {if (token != null) 'Authorization': 'Bearer $token'};
+  }
+
+  /// See [_isUnauthorized]. Exposed for `ReportApi`.
+  static Future<bool> isUnauthorized(http.Response res) => _isUnauthorized(res);
+
   /// True when the response means our token is no longer good. Announces the
   /// dead session so the app can send the agent back to the login screen.
   ///
@@ -67,7 +108,15 @@ class ApiService {
     return true;
   }
 
-  /// POST /auth/login. Returns the agent on success, otherwise why it failed.
+  /// POST /Auth/login — the unified staff login for every role.
+  ///
+  /// Replaces the retired `/call-tracker/auth/login`: the token this returns is
+  /// accepted on both the `/call-tracker/*` routes and the root routes, so the
+  /// app needs only this one session.
+  ///
+  /// Returns the staff member on success, otherwise why it failed. Teachers are
+  /// refused here — they have their own app — and so is any role this build
+  /// does not know about.
   static Future<({Agent? agent, LoginFailure? failure})> login(
     String email,
     String password,
@@ -75,7 +124,7 @@ class ApiService {
     final http.Response res;
     try {
       res = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
+        Uri.parse('$_host/Auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -89,20 +138,74 @@ class ApiService {
     if (res.statusCode == 403) return (agent: null, failure: LoginFailure.blocked);
     if (res.statusCode != 200) return (agent: null, failure: LoginFailure.server);
 
+    final Agent agent;
+    final String token;
     try {
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
-      await _saveToken(json['token'] as String);
-      final agentJson = json['agent'] as Map<String, dynamic>;
-      return (
-        agent: Agent(
-          id: agentJson['id'].toString(),
-          name: agentJson['name'] as String,
-          email: agentJson['email'] as String,
-        ),
-        failure: null,
-      );
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      // The payload nests twice: body.data holds the token, body.data.data the user.
+      final outer = body['data'] as Map<String, dynamic>?;
+      final user = outer?['data'] as Map<String, dynamic>?;
+      final rawToken = outer?['token'];
+      if (user == null || rawToken == null) {
+        return (agent: null, failure: LoginFailure.server);
+      }
+      agent = Agent.fromAuthPayload(user);
+      token = rawToken.toString();
     } catch (_) {
       return (agent: null, failure: LoginFailure.server);
+    }
+
+    // Check the role before persisting anything: a refused sign-in must not
+    // leave a usable token behind in storage.
+    if (agent.role == StaffRole.teacher) {
+      return (agent: null, failure: LoginFailure.teacherAccount);
+    }
+    if (agent.role == null) {
+      return (agent: null, failure: LoginFailure.unsupportedRole);
+    }
+
+    await _saveToken(token);
+    return (agent: agent, failure: null);
+  }
+
+  /// POST /Token/verifyToken — re-checks the stored token and returns the
+  /// current user, which is how a newly granted `agent_id`, a changed role or a
+  /// revoked account reach an app that is already signed in.
+  ///
+  /// Deliberately does **not** run through [_isUnauthorized]: a 401 here is the
+  /// caller's to interpret, and firing `onUnauthorized` mid-restore would
+  /// re-enter `AuthService.expire()` while the session is still being assigned.
+  static Future<VerifyResult> verifyToken() async {
+    final token = await _getToken();
+    // Nothing to ask about. Not evidence the session is bad — report it the
+    // same as an unreachable backend and let the first real 401 decide.
+    if (token == null) return const VerifyNetwork();
+
+    final http.Response res;
+    try {
+      res = await http.post(
+        Uri.parse('$_host/Token/verifyToken'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'token': token}),
+      );
+    } catch (_) {
+      return const VerifyNetwork();
+    }
+
+    if (res.statusCode == 401 || res.statusCode == 403) return const VerifyInvalid();
+    if (res.statusCode != 200) return const VerifyNetwork();
+
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final outer = body['data'] as Map<String, dynamic>?;
+      final user = outer?['data'] as Map<String, dynamic>?;
+      if (user == null) return const VerifyNetwork();
+      // The endpoint reissues a token; keep the fresher one.
+      final rawToken = outer?['token'];
+      if (rawToken != null) await _saveToken(rawToken.toString());
+      return VerifyOk(Agent.fromAuthPayload(user));
+    } catch (_) {
+      return const VerifyNetwork();
     }
   }
 
