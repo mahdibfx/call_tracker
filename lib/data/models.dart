@@ -316,13 +316,22 @@ class Paged<T> {
   static Paged<T> fromFlat<T>(
     Map<String, dynamic> json,
     T Function(Map<String, dynamic>) itemFromJson,
-  ) {
+  ) =>
+      fromFlatItems(
+        json,
+        (json['data'] as List<dynamic>? ?? [])
+            .map((e) => itemFromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  /// The page arithmetic for a flat envelope, over items the caller has
+  /// already parsed — for lists whose parser drops unusable rows rather than
+  /// substituting a placeholder for them.
+  static Paged<T> fromFlatItems<T>(Map<String, dynamic> json, List<T> items) {
     final total = (json['total'] as num?)?.toInt() ?? 0;
     final limit = (json['limit'] as num?)?.toInt() ?? 0;
     return Paged<T>(
-      items: (json['data'] as List<dynamic>? ?? [])
-          .map((e) => itemFromJson(e as Map<String, dynamic>))
-          .toList(),
+      items: items,
       page: (json['page'] as num?)?.toInt() ?? 1,
       totalPages: limit > 0 ? (total / limit).ceil().clamp(1, 1 << 30) : 1,
     );

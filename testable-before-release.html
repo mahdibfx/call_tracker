@@ -61,6 +61,48 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">Reports: file one, and handle your role's</span><span class="when">27 Oct</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/data/report_models.dart · report_api.dart · photo_capture.dart · lib/ui/views/reports/ (inbox, detail, compose + 6 widgets)</p>
+
+    <p><b>What changed.</b> The Reports tab is real. Everyone can file a report with a description, a photo, a category and optionally a room. Whoever's role owns that category can then work it: <i>Start work</i>, then <i>Close</i> with a result note and a result photo, or reopen a closed one. Admins can additionally sign a report off, and see every category.</p>
+
+    <p>Visibility is left to the backend — own-role categories plus anything you filed yourself, or everything for an admin — so the app never filters the list itself. Only the action buttons are gated on the device, and that gate is cosmetic: a 403 is surfaced as a readable message rather than swallowed.</p>
+
+    <p>Photos are <b>camera only</b>, by choice: a report is evidence of something happening now, so there is no gallery path to attach an old screenshot. Captures are downscaled (quality 70, max width 1920) because phone cameras produce 5–12&nbsp;MB frames and the backend refuses anything over 10&nbsp;MB — there is also a client-side size check, so an oversized file fails instantly instead of after a two-minute upload.</p>
+
+    <p>The category picker shows <b>all 23</b> categories grouped by the role that handles each, with your own role's group first. That is deliberate: filtering to your own role would stop a cleaner reporting a broken projector, which is a thing that needs to happen.</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>As a cleaner or maintenance account: the app opens straight onto Reports with no bottom bar.</li>
+      <li>Tap <b>+</b>, pick a category, type a description, take a photo, pick a room, send. The report should appear at the top of the list.</li>
+      <li>Try to send with neither a description nor a photo — the button stays disabled and says why.</li>
+      <li>Open a report in <i>your</i> role's category: <i>Start work</i> → <i>Close this report</i> → choose Done, add a note and a result photo. The result block should then show both.</li>
+      <li>Open a report in <b>another</b> role's category (e.g. a cleaner opening a plumbing one): it must be readable with <b>no</b> action buttons at all.</li>
+      <li>Reopen a completed report and confirm it goes back to <i>In progress</i>.</li>
+      <li>As an admin: sign a report off, then take the sign-off back. A tick should appear beside the state while signed off.</li>
+      <li>Filter by each state chip; pull down to refresh; scroll past 50 reports to check the next page loads.</li>
+      <li>Turn airplane mode on and pull to refresh: the list must keep what it had and say it could not load, not go blank.</li>
+    </ol>
+
+    <div class="lbl">Covered by tests</div>
+    <ul>
+      <li><code>test/report_parsing_test.dart</code> — 24 checks against live payload shapes: every nullable field absent, unknown states, unusable rows dropped, who may handle what (including the two role spellings agreeing), and the flat <code>/reports</code> pagination that <code>Paged.fromJson</code> would have read as a single page.</li>
+      <li><code>test/report_actions_test.dart</code> — 13 widget checks pinning the permission matrix in the UI: which buttons each role sees, how the offered transitions follow the state, and sign-off being admin-only.</li>
+    </ul>
+
+    <div class="pass">
+      Every field the app reads was confirmed present in production responses for <code>/reports</code>, <code>/report-categories</code>, <code>/rooms</code> and <code>/reports/categories</code>.
+    </div>
+
+    <div class="need">
+      Nothing here has been seen on a screen, and the camera path in particular cannot be exercised without a handset. Push notifications are still to come, so a new report only appears on someone else's phone when they open or refresh the app.
+    </div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">Choose which number to ring</span><span class="when">27 Oct</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/ui/views/student_detail/widgets/number_picker_sheet.dart · student_detail_view.dart · call_view.dart · call_monitor.dart · models.dart · students_view.dart · groups_view.dart</p>

@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to photograph a problem when you file a report.</string>
 	<key>CFBundleDisplayName</key>
 	<string>El Ameed Staff</string>
 	<key>CFBundleExecutable</key>
