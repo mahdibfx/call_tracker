@@ -69,9 +69,9 @@
 
     <p>Visibility is left to the backend — own-role categories plus anything you filed yourself, or everything for an admin — so the app never filters the list itself. Only the action buttons are gated on the device, and that gate is cosmetic: a 403 is surfaced as a readable message rather than swallowed.</p>
 
-    <p>Photos are <b>camera only</b>, by choice: a report is evidence of something happening now, so there is no gallery path to attach an old screenshot. Captures are downscaled (quality 70, max width 1920) because phone cameras produce 5–12&nbsp;MB frames and the backend refuses anything over 10&nbsp;MB — there is also a client-side size check, so an oversized file fails instantly instead of after a two-minute upload.</p>
+    <p>The compose screen mirrors the dashboard's report modal, so the two read as the same thing: a flag header, two dashed photo cards (camera first, gallery second), every category as a chip, the description, and an optional room. Captures are downscaled (quality 70, max width 1920) because phone cameras produce 5–12&nbsp;MB frames and the backend refuses anything over 10&nbsp;MB — there is also a client-side size check, so an oversized file fails instantly instead of after a two-minute upload.</p>
 
-    <p>The category picker shows <b>all 23</b> categories grouped by the role that handles each, with your own role's group first. That is deliberate: filtering to your own role would stop a cleaner reporting a broken projector, which is a thing that needs to happen.</p>
+    <p>All <b>23</b> categories are shown, alphabetically, and one is required — it is what routes the report. Deliberately not filtered to the reporter's own role, since that would stop a cleaner reporting a broken projector. The send button stays disabled until there is a category plus a photo or a description, and the hint beneath it names whichever is still missing.</p>
 
     <div class="lbl">How to test</div>
     <ol>

@@ -2,21 +2,25 @@ import 'package:image_picker/image_picker.dart';
 
 /// Taking the one photo a report is allowed.
 ///
-/// Camera only, deliberately: a report is evidence of something happening now,
-/// and letting an old screenshot in defeats the point. No gallery path exists.
+/// Both sources are offered, matching the dashboard's report form: a problem
+/// is often photographed before anyone opens the app.
 class PhotoCapture {
   static final _picker = ImagePicker();
 
-  /// Opens the camera and returns the file path, or null if the user backed
-  /// out or the device has no usable camera.
-  ///
+  /// Opens the camera. Null if the user backed out or there is no usable
+  /// camera.
+  static Future<String?> takePhoto() => _pick(ImageSource.camera);
+
+  /// Opens the gallery. Null if the user backed out.
+  static Future<String?> choosePhoto() => _pick(ImageSource.gallery);
+
   /// Downscaled on the way out: phone cameras produce 5–12MB frames and the
-  /// backend refuses anything over 10MB, so a full-resolution capture would
-  /// fail in the field rather than in testing.
-  static Future<String?> takePhoto() async {
+  /// backend refuses anything over 10MB, so a full-resolution image would fail
+  /// in the field rather than in testing.
+  static Future<String?> _pick(ImageSource source) async {
     try {
       final shot = await _picker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 70,
         maxWidth: 1920,
       );
