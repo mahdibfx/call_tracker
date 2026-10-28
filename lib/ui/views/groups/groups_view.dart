@@ -90,7 +90,7 @@ class _GroupsViewState extends State<GroupsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      appBar: const AppTopBar(title: 'Student Groups', subtitle: 'Communication Cycles'),
+      appBar: const AppTopBar(title: 'Student Groups', showUser: true),
       body: Column(
         children: [
           Padding(

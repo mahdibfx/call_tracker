@@ -115,7 +115,7 @@ class _StudentsViewState extends State<StudentsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      appBar: const AppTopBar(title: 'Language Institute'),
+      appBar: const AppTopBar(title: 'Students', showUser: true),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

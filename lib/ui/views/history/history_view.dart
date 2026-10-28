@@ -54,7 +54,7 @@ class _HistoryViewState extends State<HistoryView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundColor,
-      appBar: const AppTopBar(title: 'Call History'),
+      appBar: const AppTopBar(title: 'Call History', showUser: true),
       body: RefreshIndicator(
         onRefresh: _load,
         color: AppColors.primaryColor,
