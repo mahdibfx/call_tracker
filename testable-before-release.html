@@ -61,6 +61,31 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">App icon, camera-only photos, and a report error that says what went wrong</span><span class="when">29 Oct</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">assets/icon/ · pubspec.yaml · lib/data/photo_capture.dart · report_api.dart · lib/ui/views/reports/report_compose_view.dart</p>
+
+    <p><b>App icon.</b> The app had the stock Flutter icon. It now has a staff ID badge on the brand orange, generated into every Android density, the adaptive icon (orange background, badge foreground) and the iOS set. The source is <code>assets/icon/app_icon.svg</code>; after editing it, re-render the PNGs and run <code>dart run flutter_launcher_icons</code>.</p>
+
+    <p><b>Camera only.</b> The gallery card is gone from the compose screen and <code>PhotoCapture.choosePhoto</code> is deleted. A report has to be photographed where the problem is, not attached from a screenshot days later. This is a deliberate divergence from the dashboard's modal, which still offers both.</p>
+
+    <p><b>The real error.</b> Sending a report that the server refused showed &ldquo;Check your connection and try again&rdquo; no matter what actually happened — <code>createReport</code> collapsed every failure into null. It now returns the reason and the screen shows the server's own message, so a rejection reads as a rejection and only a genuinely unreachable server blames the connection. A 2xx whose body cannot be parsed now counts as sent, so nobody files the same report twice.</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Install over the old build: the home screen icon should be the orange badge, not the Flutter logo. Check the app switcher and the settings list too.</li>
+      <li>Compose a report: there is <b>one</b> photo card and it opens the camera. There is no way to reach the gallery.</li>
+      <li>Send the report that failed before and <b>screenshot the message</b> — it now names the real cause. That message is what we need to fix the underlying rejection.</li>
+      <li>Turn airplane mode on and send: it should say it could not reach the server, which is the one case where that wording is true.</li>
+    </ol>
+
+    <div class="need">
+      The cause of the original send failure is still unknown — the old code threw it away. The new message is what identifies it, so the screenshot in step 3 is the point of this build.
+    </div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">Reports: file one, and handle your role's</span><span class="when">27 Oct</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/data/report_models.dart · report_api.dart · photo_capture.dart · lib/ui/views/reports/ (inbox, detail, compose + 6 widgets)</p>
@@ -69,7 +94,7 @@
 
     <p>Visibility is left to the backend — own-role categories plus anything you filed yourself, or everything for an admin — so the app never filters the list itself. Only the action buttons are gated on the device, and that gate is cosmetic: a 403 is surfaced as a readable message rather than swallowed.</p>
 
-    <p>The compose screen mirrors the dashboard's report modal, so the two read as the same thing: a flag header, two dashed photo cards (camera first, gallery second), every category as a chip, the description, and an optional room. Captures are downscaled (quality 70, max width 1920) because phone cameras produce 5–12&nbsp;MB frames and the backend refuses anything over 10&nbsp;MB — there is also a client-side size check, so an oversized file fails instantly instead of after a two-minute upload.</p>
+    <p>The compose screen mirrors the dashboard's report modal, so the two read as the same thing: a flag header, a dashed photo card, every category as a chip, the description, and an optional room. Captures are downscaled (quality 70, max width 1920) because phone cameras produce 5–12&nbsp;MB frames and the backend refuses anything over 10&nbsp;MB — there is also a client-side size check, so an oversized file fails instantly instead of after a two-minute upload.</p>
 
     <p>All <b>23</b> categories are shown, alphabetically, and one is required — it is what routes the report. Deliberately not filtered to the reporter's own role, since that would stop a cleaner reporting a broken projector. The send button stays disabled until there is a category plus a photo or a description, and the hint beneath it names whichever is still missing.</p>
 

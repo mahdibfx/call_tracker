@@ -88,20 +88,20 @@ class _ReportComposeViewState extends State<ReportComposeView> {
 
   Future<void> _submit() async {
     setState(() => _submitting = true);
-    final created = await ReportApi.createReport(
+    final result = await ReportApi.createReport(
       categoryId: _category?.id,
       description: _descriptionController.text,
       imagePath: _imagePath,
       roomId: _room?.id,
     );
     if (!mounted) return;
-    if (created == null) {
+    if (result.error != null) {
       setState(() => _submitting = false);
+      // The server's own words, not a guess about the network — a rejected
+      // report usually says exactly what it wanted.
       showTopSnackBar(
         Overlay.of(context),
-        const CustomSnackBar.error(
-          message: "Couldn't send the report. Check your connection and try again.",
-        ),
+        CustomSnackBar.error(message: result.error!),
       );
       return;
     }
@@ -158,28 +158,11 @@ class _ReportComposeViewState extends State<ReportComposeView> {
         onRetake: () => _addPhoto(PhotoCapture.takePhoto),
       );
     }
-    return Row(
-      children: [
-        Expanded(
-          child: _PhotoSource(
-            icon: Icons.photo_camera_outlined,
-            label: 'Take a photo',
-            hint: 'Opens the camera',
-            highlighted: true,
-            onTap: () => _addPhoto(PhotoCapture.takePhoto),
-          ),
-        ),
-        horizontalSpaceSmall,
-        Expanded(
-          child: _PhotoSource(
-            icon: Icons.add_photo_alternate_outlined,
-            label: 'Choose a photo',
-            hint: 'From the gallery',
-            highlighted: false,
-            onTap: () => _addPhoto(PhotoCapture.choosePhoto),
-          ),
-        ),
-      ],
+    return _PhotoSource(
+      icon: Icons.photo_camera_outlined,
+      label: 'Take a photo',
+      hint: 'Opens the camera — the photo has to be taken here',
+      onTap: () => _addPhoto(PhotoCapture.takePhoto),
     );
   }
 
@@ -362,37 +345,32 @@ class _PhotoSource extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.hint,
-    required this.highlighted,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String hint;
-
-  /// The camera is the expected route, so it leads.
-  final bool highlighted;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final accent = highlighted ? AppColors.primaryColor : AppColors.secondaryColor;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppStyles.borderRadiusMediumValue),
       child: DottedBorder(
-        color: highlighted ? AppColors.primaryColor : AppColors.borderColor,
-        fill: highlighted ? AppColors.primaryColorLight : AppColors.cardColor,
+        color: AppColors.primaryColor,
+        fill: AppColors.primaryColorLight,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
           child: Column(
             children: [
-              Icon(icon, size: 26, color: accent),
+              Icon(icon, size: 26, color: AppColors.primaryColor),
               const SizedBox(height: 8),
               CustomText.bodyBold(
                 text: label,
                 fontSize: 14,
-                textColor: accent,
+                textColor: AppColors.primaryColor,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 2),

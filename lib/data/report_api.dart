@@ -126,15 +126,19 @@ class ReportApi {
   /// POST /reports — file a new one. The backend needs a description or a
   /// photo; both is better.
   ///
-  /// Returns the created report, or null. [ReportFailure] is not modelled
-  /// because the compose screen only distinguishes "worked" from "did not".
-  static Future<Report?> createReport({
+  /// Unlike the getters this reports *why* it failed: a report that will not
+  /// send is the one place where "check your connection" is actively
+  /// misleading — the cause is usually a rejection the server already
+  /// explained.
+  static Future<({Report? report, String? error})> createReport({
     int? categoryId,
     String? description,
     String? imagePath,
     int? roomId,
   }) async {
-    if (imagePath != null && await _tooLarge(imagePath)) return null;
+    if (imagePath != null && await _tooLarge(imagePath)) {
+      return (report: null, error: 'That photo is over 10MB. Take another one.');
+    }
     try {
       final req = http.MultipartRequest('POST', Uri.parse('$_host/reports'))
         // Bearer only: MultipartRequest sets its own Content-Type carrying the
@@ -150,14 +154,33 @@ class ReportApi {
         req.files.add(await http.MultipartFile.fromPath('image', imagePath));
       }
       final res = await http.Response.fromStream(await req.send());
-      if (await ApiService.isUnauthorized(res)) return null;
-      if (res.statusCode != 201 && res.statusCode != 200) return null;
+      if (await ApiService.isUnauthorized(res)) {
+        return (report: null, error: 'Your session ended. Sign in again.');
+      }
+      if (res.statusCode != 201 && res.statusCode != 200) {
+        return (report: null, error: _serverMessage(res));
+      }
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       final data = body['data'] as Map<String, dynamic>?;
-      return data == null ? null : Report.fromJson(data);
+      // A 201 whose body we cannot parse still means the report was filed,
+      // so it is not an error — saying so would have them send it twice.
+      return (report: data == null ? null : Report.fromJson(data), error: null);
     } catch (_) {
-      return null;
+      return (report: null, error: "Couldn't reach the server. Check your connection.");
     }
+  }
+
+  /// Whatever the backend said, or the bare status when it said nothing
+  /// readable (an HTML error page from the host, typically).
+  static String _serverMessage(http.Response res) {
+    try {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final message = (body['message'] ?? body['error'])?.toString().trim();
+      if (message != null && message.isNotEmpty) return message;
+    } catch (_) {
+      // Not JSON.
+    }
+    return 'The server refused it (${res.statusCode}).';
   }
 
   /// PATCH /reports/:id/state — move a report along.
