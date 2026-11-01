@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/report_models.dart';
@@ -151,7 +152,7 @@ class ReportApi {
           if (roomId != null) 'room_id': '$roomId',
         });
       if (imagePath != null) {
-        req.files.add(await http.MultipartFile.fromPath('image', imagePath));
+        req.files.add(await imagePart('image', imagePath));
       }
       final res = await http.Response.fromStream(await req.send());
       if (await ApiService.isUnauthorized(res)) {
@@ -168,6 +169,31 @@ class ReportApi {
     } catch (_) {
       return (report: null, error: "Couldn't reach the server. Check your connection.");
     }
+  }
+
+  /// The backend's upload filter refuses anything that is not `image/*`, and
+  /// `MultipartFile.fromPath` labels a file `application/octet-stream` unless
+  /// told otherwise — which is how every report with a photo came back as
+  /// "The file must be an image." The type is named explicitly here.
+  /// Public only so `test/report_upload_test.dart` can pin it.
+  static Future<http.MultipartFile> imagePart(String field, String path) {
+    final ext = path.split('.').last.toLowerCase();
+    const subtypes = {
+      'jpg': 'jpeg',
+      'jpeg': 'jpeg',
+      'png': 'png',
+      'heic': 'heic',
+      'heif': 'heif',
+      'webp': 'webp',
+      'gif': 'gif',
+    };
+    return http.MultipartFile.fromPath(
+      field,
+      path,
+      // image_picker re-encodes to JPEG whenever imageQuality is set, which it
+      // always is, so the fallback is the honest one rather than a guess.
+      contentType: MediaType('image', subtypes[ext] ?? 'jpeg'),
+    );
   }
 
   /// Whatever the backend said, or the bare status when it said nothing
@@ -226,7 +252,7 @@ class ReportApi {
               'confirmation_description': confirmationDescription.trim(),
           })
           ..files.add(
-            await http.MultipartFile.fromPath('confirmation_image', imagePath),
+            await imagePart('confirmation_image', imagePath),
           );
         res = await http.Response.fromStream(await req.send());
       }

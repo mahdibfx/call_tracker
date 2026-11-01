@@ -75,12 +75,15 @@
     <ol>
       <li>Install over the old build: the home screen icon should be the orange badge, not the Flutter logo. Check the app switcher and the settings list too.</li>
       <li>Compose a report: there is <b>one</b> photo card and it opens the camera. There is no way to reach the gallery.</li>
-      <li>Send the report that failed before and <b>screenshot the message</b> — it now names the real cause. That message is what we need to fix the underlying rejection.</li>
+      <li>Send a report <b>with a photo</b> — this is what was failing. It should go through now.</li>
+      <li>Close a report with a result photo: the same upload bug applied there, so that path needs a run too.</li>
       <li>Turn airplane mode on and send: it should say it could not reach the server, which is the one case where that wording is true.</li>
     </ol>
 
-    <div class="need">
-      The cause of the original send failure is still unknown — the old code threw it away. The new message is what identifies it, so the screenshot in step 3 is the point of this build.
+    <p><b>The cause, found.</b> Not the network. <code>MultipartFile.fromPath</code> labels a file <code>application/octet-stream</code> unless told otherwise, and the backend's upload filter answers <code>400 &ldquo;The file must be an image.&rdquo;</code> — so every report carrying a photo was refused while text-only ones went through. Both upload paths now name the type. Confirmed against production by curl: the same request succeeds as <code>image/jpeg</code> and fails as <code>application/octet-stream</code>.</p>
+
+    <div class="pass">
+      Reports with a photo, without a photo, and with a room were all accepted (201) by the live API as <code>anis@gmail.com</code>. <code>test/report_upload_test.dart</code> pins the content type so this cannot come back.
     </div>
   </div>
 </details>
