@@ -61,6 +61,39 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">Push notifications, and the real package name</span><span class="when">4 Nov</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/data/push_service.dart · main.dart · auth_service.dart · root_view.dart · firebase_options.dart · android/app/ (build.gradle.kts, google-services.json, AndroidManifest.xml, MainActivity.kt)</p>
+
+    <p><b>Push is in.</b> A new report in your role's categories, or a decision on one you filed, now reaches the phone while the app is backgrounded or closed. Tapping the notification opens that report. Android only — there is no iOS Firebase app.</p>
+
+    <p>It runs on the <b>elameed-system</b> Firebase project, the same one the Teachers App uses, as its own Android app <code>com.elameed.staff</code>. The backend sends a title and body, so Android draws the tray entry itself; no local-notifications plugin was needed. While the app is open the tray entry is suppressed, so an arriving push refreshes the list instead of drawing a banner over what you are reading.</p>
+
+    <p>The device is registered when a session begins — a fresh sign-in and a restored one both go through the same hook — and unregistered on sign-out, so a shared handset stops showing the previous user's reports.</p>
+
+    <p><b>The package name changed</b> from <code>com.example.call_tracker</code> to <code>com.elameed.staff</code>. Play rejects <code>com.example.*</code>, so this had to happen before any release. It means this build installs <b>beside</b> an older one rather than over it: remove the old app first, and expect to sign in again.</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Install on a real phone. Android 13+ should ask for notification permission on the first sign-in.</li>
+      <li>From another account (or the dashboard), file a report in a category <b>this</b> user's role handles. With the app <b>backgrounded</b>, a notification should arrive.</li>
+      <li>Tap it: the app should open <b>that</b> report, not just the list.</li>
+      <li>Force-close the app entirely, repeat, and tap again — the cold-start path is separate code and is the one most likely to break.</li>
+      <li>With the app <b>open</b> on the list, have a report filed: no banner, but the list should refresh on its own.</li>
+      <li>Sign out, then have another report filed: nothing should arrive on this phone.</li>
+    </ol>
+
+    <div class="pass">
+      A debug APK builds with the renamed package and the new Firebase config. <code>flutter analyze</code> clean, 117 tests pass.
+    </div>
+
+    <div class="need">
+      Nothing about push can be verified without a handset and a second account — no notification has actually been delivered yet. The backend also has to be told this new Firebase app exists if it holds per-app credentials.
+    </div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">App icon, camera-only photos, and a report error that says what went wrong</span><span class="when">29 Oct</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">assets/icon/ · pubspec.yaml · lib/data/photo_capture.dart · report_api.dart · lib/ui/views/reports/report_compose_view.dart</p>

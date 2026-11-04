@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/push_service.dart';
 
 /// Who is signed in, as app-wide state.
 ///
@@ -130,6 +131,9 @@ class AuthService {
   }
 
   static Future<void> signOut() async {
+    // Before _clear: unregistering needs the token it is about to discard, so
+    // a shared handset stops showing the previous user's reports.
+    await PushService.unregister();
     await _clear();
     endedReason = null;
     signedIn.value = null;

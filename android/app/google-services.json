@@ -1,21 +1,40 @@
 {
   "project_info": {
-    "project_number": "28904530449",
-    "project_id": "calltracker-b3aca",
-    "storage_bucket": "calltracker-b3aca.firebasestorage.app"
+    "project_number": "354074649082",
+    "project_id": "elameed-system",
+    "storage_bucket": "elameed-system.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:28904530449:android:8089a02ba72df5d14407b0",
+        "mobilesdk_app_id": "1:354074649082:android:422ef838f33df5beb9c443",
         "android_client_info": {
-          "package_name": "com.example.call_tracker"
+          "package_name": "com.elameed.staff"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBOWuhN3ZIqAThQ6ErSfJ4ORNDLbbu8YEQ"
+          "current_key": "AIzaSyDkcWbk7L7QUNvZRKi8p9UqconWDRtBeOE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:354074649082:android:b17e8086a2736c1cb9c443",
+        "android_client_info": {
+          "package_name": "com.elameed.teachers"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkcWbk7L7QUNvZRKi8p9UqconWDRtBeOE"
         }
       ],
       "services": {

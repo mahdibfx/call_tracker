@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:call_tracker/data/api_service.dart';
 import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/push_service.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/views/login/login_view.dart';
 import 'package:call_tracker/ui/views/root/app_area.dart';
@@ -21,6 +22,14 @@ Future<void> main() async {
       appNavigatorKey.currentState?.popUntil((route) => route.isFirst);
     }
   };
+
+  await PushService.start();
+
+  // One hook covers both ways a session begins: a fresh sign-in and a restored
+  // one. Registering the device needs a token, so it cannot run before this.
+  AuthService.signedIn.addListener(() {
+    if (AuthService.signedIn.value != null) PushService.register();
+  });
 
   await AuthService.restore();
   await Permission.phone.request();

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:call_tracker/data/call_monitor.dart';
 import 'package:call_tracker/data/models.dart';
+import 'package:call_tracker/data/push_service.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
+import 'package:call_tracker/data/report_api.dart';
+import 'package:call_tracker/ui/views/reports/report_detail_view.dart';
 import 'package:call_tracker/ui/views/call_summary/call_summary_view.dart';
 import 'package:call_tracker/ui/views/root/app_area.dart';
 import 'package:call_tracker/ui/widgets/bottom_nav_bar.dart';
@@ -31,12 +34,34 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     if (_hasCalls) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _resumePendingCall());
     }
+    // A notification tapped before this shell existed — a cold start — parked
+    // its report id. Setting the handler fires it straight away if so.
+    PushService.onReportTapped = _openTappedReport;
   }
 
   @override
   void dispose() {
+    PushService.onReportTapped = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Opens the report a notification was about. The push carries only its id,
+  /// so the report itself is fetched; if that fails the tap just refreshes the
+  /// list, which is better than an error screen for something they tapped.
+  Future<void> _openTappedReport() async {
+    final id = PushService.takePendingReportId();
+    if (id == null) return;
+    final report = await ReportApi.getReport(id);
+    if (!mounted) return;
+    if (report == null) {
+      RefreshSignal.fire();
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ReportDetailView(report: report)),
+    );
+    if (mounted) RefreshSignal.fire();
   }
 
   /// Coming back from the background is the moment a list is most likely to be
