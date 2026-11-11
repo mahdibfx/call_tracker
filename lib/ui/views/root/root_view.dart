@@ -4,7 +4,9 @@ import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/push_service.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/data/report_api.dart';
+import 'package:call_tracker/data/task_api.dart';
 import 'package:call_tracker/ui/views/reports/report_detail_view.dart';
+import 'package:call_tracker/ui/views/tasks/task_detail_view.dart';
 import 'package:call_tracker/ui/views/call_summary/call_summary_view.dart';
 import 'package:call_tracker/ui/views/root/app_area.dart';
 import 'package:call_tracker/ui/widgets/bottom_nav_bar.dart';
@@ -36,12 +38,12 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     }
     // A notification tapped before this shell existed — a cold start — parked
     // its report id. Setting the handler fires it straight away if so.
-    PushService.onReportTapped = _openTappedReport;
+    PushService.onNotificationTapped = _openTapped;
   }
 
   @override
   void dispose() {
-    PushService.onReportTapped = null;
+    PushService.onNotificationTapped = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -49,7 +51,12 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
   /// Opens the report a notification was about. The push carries only its id,
   /// so the report itself is fetched; if that fails the tap just refreshes the
   /// list, which is better than an error screen for something they tapped.
-  Future<void> _openTappedReport() async {
+  Future<void> _openTapped() async {
+    final taskId = PushService.takePendingTaskId();
+    if (taskId != null) {
+      await _openTappedTask(taskId);
+      return;
+    }
     final id = PushService.takePendingReportId();
     if (id == null) return;
     final report = await ReportApi.getReport(id);
@@ -60,6 +67,22 @@ class _RootViewState extends State<RootView> with WidgetsBindingObserver {
     }
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ReportDetailView(report: report)),
+    );
+    if (mounted) RefreshSignal.fire();
+  }
+
+  /// A tapped task notification. Only an agent can be given a task, so a
+  /// shell without the calls area never opens one.
+  Future<void> _openTappedTask(int id) async {
+    if (!_hasCalls) return;
+    final task = await TaskApi.getTask(id);
+    if (!mounted) return;
+    if (task == null) {
+      RefreshSignal.fire();
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TaskDetailView(task: task)),
     );
     if (mounted) RefreshSignal.fire();
   }

@@ -28,6 +28,7 @@ class PushService {
   /// exists. A cold start delivers the tap before `runApp`, so there is no
   /// context to push onto yet.
   static int? _pendingReportId;
+  static int? _pendingTaskId;
 
   /// Called once from `main()`, before `runApp`.
   static Future<void> start() async {
@@ -83,12 +84,18 @@ class PushService {
     await ReportApi.registerDevice(token);
   }
 
-  /// Every value in an FCM `data` payload arrives as a string, so the id is
+  /// Every value in an FCM `data` payload arrives as a string, so the ids are
   /// parsed rather than cast.
+  ///
+  /// Two kinds of push land here: a report (`report_id`) and a task
+  /// (`TASK_ASSIGNED`, `task_id`). A push carrying neither — a type this build
+  /// does not know — just opens the app, which is the right fallback.
   static void _openFromTap(RemoteMessage message) {
-    final id = int.tryParse('${message.data['report_id']}');
-    if (id == null) return;
-    _pendingReportId = id;
+    final reportId = int.tryParse('${message.data['report_id']}');
+    final taskId = int.tryParse('${message.data['task_id']}');
+    if (reportId == null && taskId == null) return;
+    _pendingReportId = reportId;
+    _pendingTaskId = taskId;
     _drainPending?.call();
   }
 
@@ -96,15 +103,24 @@ class PushService {
   /// stays free of widgets and can be unit-tested.
   static VoidCallback? _drainPending;
 
-  static set onReportTapped(VoidCallback? handler) {
+  static set onNotificationTapped(VoidCallback? handler) {
     _drainPending = handler;
-    if (handler != null && _pendingReportId != null) handler();
+    if (handler != null && (_pendingReportId != null || _pendingTaskId != null)) {
+      handler();
+    }
   }
 
   /// Consumes the parked report id, if there is one.
   static int? takePendingReportId() {
     final id = _pendingReportId;
     _pendingReportId = null;
+    return id;
+  }
+
+  /// Consumes the parked task id, if there is one.
+  static int? takePendingTaskId() {
+    final id = _pendingTaskId;
+    _pendingTaskId = null;
     return id;
   }
 }

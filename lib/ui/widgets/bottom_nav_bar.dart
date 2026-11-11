@@ -54,9 +54,12 @@ class BottomNavBar extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
+                        // An agent's shell has five tabs, so a label has to
+                        // survive a narrow phone rather than overflow.
                         CustomText.caption(
                           text: item.label,
                           textColor: selected ? AppColors.primaryColor : AppColors.secondaryColor,
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),

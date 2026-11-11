@@ -4,6 +4,7 @@ import 'package:call_tracker/ui/views/groups/groups_view.dart';
 import 'package:call_tracker/ui/views/history/history_view.dart';
 import 'package:call_tracker/ui/views/reports/reports_view.dart';
 import 'package:call_tracker/ui/views/students/students_view.dart';
+import 'package:call_tracker/ui/views/tasks/tasks_view.dart';
 
 /// One top-level area of the app.
 ///
@@ -11,6 +12,7 @@ import 'package:call_tracker/ui/views/students/students_view.dart';
 /// tab index can never point at a different screen than the one it labels.
 enum AppArea {
   calls(Icons.call, 'Calls'),
+  tasks(Icons.checklist_rtl, 'Tasks'),
   groups(Icons.groups, 'Groups'),
   history(Icons.history, 'History'),
   reports(Icons.assignment_outlined, 'Reports');
@@ -25,6 +27,7 @@ enum AppArea {
   /// that needs to re-fetch has to listen to `RefreshSignal`.
   Widget get screen => switch (this) {
         AppArea.calls => const StudentsView(),
+        AppArea.tasks => const TasksView(),
         AppArea.groups => const GroupsView(),
         AppArea.history => const HistoryView(),
         AppArea.reports => const ReportsView(),
@@ -38,10 +41,15 @@ enum AppArea {
   /// submit would be worse than not offering it. Note this keys on `agent_id`,
   /// not on role — an admin who is not a provisioned agent gets no dialer.
   ///
+  /// Tasks rides on the same `agent_id` gate: a task is a list of students to
+  /// ring, so it only means anything to someone who can place a tracked call.
+  /// The backend lets every role read and write tasks — that gate is ours
+  /// alone, so do not assume the server will refuse a cleaner.
+  ///
   /// Reports is available to every role that can reach this app at all.
   /// Teachers never get here: they are refused at login and on restore.
   static List<AppArea> forUser(Agent user) => [
-        if (user.canSeeCalls) ...[calls, groups, history],
+        if (user.canSeeCalls) ...[calls, tasks, groups, history],
         reports,
       ];
 }

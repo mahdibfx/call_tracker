@@ -17,7 +17,24 @@ void main() {
     test('a provisioned agent gets the call areas and reports', () {
       expect(
         AppArea.forUser(_user(role: StaffRole.teamOnsite, agentId: '7')),
-        [AppArea.calls, AppArea.groups, AppArea.history, AppArea.reports],
+        [AppArea.calls, AppArea.tasks, AppArea.groups, AppArea.history, AppArea.reports],
+      );
+    });
+
+    // Tasks are a list of students to ring, so they belong to exactly the
+    // people who can place a tracked call. The backend lets every role read
+    // and write them, so this gate is the app's alone.
+    test('tasks go only to someone who can place a call', () {
+      for (final role in StaffRole.values) {
+        expect(
+          AppArea.forUser(_user(role: role)).contains(AppArea.tasks),
+          isFalse,
+          reason: '$role without an agent id must not get tasks',
+        );
+      }
+      expect(
+        AppArea.forUser(_user(role: StaffRole.teamOnline, agentId: '3')),
+        contains(AppArea.tasks),
       );
     });
 

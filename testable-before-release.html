@@ -61,6 +61,41 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">Tasks: the student lists the office hands an agent</span><span class="when">11 Nov</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/data/task_models.dart · task_api.dart · lib/ui/views/tasks/ (list, detail, card, result sheet) · app_area.dart · push_service.dart · root_view.dart</p>
+
+    <p><b>A new Tasks tab, for call agents only.</b> The office sends an agent a list of students to ring — "Call the absents of ENG 3AS G1" — with a priority and a due date. The tab shows what is still to do, how far through each list the agent is, and which ones are late.</p>
+
+    <p>Opening a task lists its students in the order the office put them in. Each row offers <b>Call</b>, which hands the student to the normal call flow so the call is tracked and verified exactly like any other, and <b>Record result</b>: Reached, No answer, or Skipped, with an optional note. The agent never sets the task's own status — the backend moves it to <i>In progress</i> at the first result and to <i>Done</i> once nobody is left.</p>
+
+    <p><b>Only agents see it.</b> The tab is gated on <code>agent_id</code>, the same rule as Calls — a task is a list of people to ring, so it means nothing to a cleaner. Worth knowing: <b>the backend does not enforce this.</b> Every role, student included, is allowed to read and write tasks; a maintenance account returns 200 on <code>GET /tasks</code> today. The gate is the app's alone and a test pins it.</p>
+
+    <p>A task notification opens that task, the same way a report notification opens its report.</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Sign in as a <b>call agent</b>: there should now be five tabs, with Tasks beside Calls. Check the labels still fit on a narrow phone.</li>
+      <li>Sign in as maintenance or a cleaner: <b>no</b> Tasks tab at all.</li>
+      <li>From the dashboard, give the agent a task with a few students. The tab should show it, with the count on the "To do" chip.</li>
+      <li>Open it, tap <b>Call</b> on a student: the normal call screen opens and the call is logged as usual.</li>
+      <li>Tap <b>Record result</b>, choose Reached and add a note. The row should show it, and the progress bar should move.</li>
+      <li>Record a result for the <b>last</b> remaining student: the task should become <i>Done</i> on its own.</li>
+      <li>Have the office cancel a task: the action buttons should disappear and the reason should be shown.</li>
+      <li>With the app backgrounded, have a task assigned: tapping the notification should open that task.</li>
+    </ol>
+
+    <div class="pass">
+      <code>flutter analyze</code> clean, 130 tests pass. <code>test/task_parsing_test.dart</code> covers the live payload shapes, missing fields, unknown statuses reading as "not called" rather than finished, the empty-task progress bar that would otherwise be NaN, and the <code>pagination</code> envelope that <code>/reports</code>' parser would have stranded on page 1.
+    </div>
+
+    <div class="need">
+      <b>Deferred:</b> the call is not linked back to the task (<code>call_id</code> is left null). The call summary unwinds to the root when it submits, so carrying the new call's id back to the task screen means changing that unwind — the one flow that cannot be unit-tested. The agent records the result by hand instead, which is one extra tap. Raise this again before the next release.
+    </div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">Push notifications, and the real package name</span><span class="when">4 Nov</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/data/push_service.dart · main.dart · auth_service.dart · root_view.dart · firebase_options.dart · android/app/ (build.gradle.kts, google-services.json, AndroidManifest.xml, MainActivity.kt)</p>

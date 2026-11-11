@@ -327,6 +327,18 @@ class Paged<T> {
   /// The page arithmetic for a flat envelope, over items the caller has
   /// already parsed — for lists whose parser drops unusable rows rather than
   /// substituting a placeholder for them.
+  /// [fromJson]'s sibling for callers that have already built (and filtered)
+  /// their items — a row we cannot read an id from is dropped rather than
+  /// rendered blank, which a per-item parser cannot express.
+  static Paged<T> fromJsonItems<T>(Map<String, dynamic> json, List<T> items) {
+    final pagination = json['pagination'] as Map<String, dynamic>? ?? const {};
+    return Paged<T>(
+      items: items,
+      page: (pagination['page'] as num?)?.toInt() ?? 1,
+      totalPages: (pagination['totalPages'] as num?)?.toInt() ?? 1,
+    );
+  }
+
   static Paged<T> fromFlatItems<T>(Map<String, dynamic> json, List<T> items) {
     final total = (json['total'] as num?)?.toInt() ?? 0;
     final limit = (json['limit'] as num?)?.toInt() ?? 0;
