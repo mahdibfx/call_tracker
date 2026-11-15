@@ -61,6 +61,31 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">Task result now actually records (and one Call button only)</span><span class="when">15 Nov</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/ui/views/call_summary/call_summary_view.dart · tasks/task_detail_view.dart · deleted widgets/result_sheet.dart</p>
+
+    <p><b>The bug.</b> After a task call you'd pick the outcome and Save and Finish, but the task stayed on the same count — "4 called" stayed 4 even after a refresh. The result write was being fired in the background and the task reloaded before it landed, so it never showed.</p>
+
+    <p><b>The fix.</b> The task screen now owns it: the call hands its outcome back, the task calls the record API, waits for it, <b>then</b> reloads — so the count moves every time. A brief spinner covers the save. The call-tracker call submit still goes out in the background (that's what keeps Finish from hanging), but the task result is awaited because its whole job is to reflect.</p>
+
+    <p><b>One button.</b> The separate "Record result" button is gone. Each student has just <b>Call</b> (or <b>Call again</b> once there's a result). Recording is a side effect of finishing the call, nothing to tap separately.</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Open a task, note the count (e.g. "4 of 26 called").</li>
+      <li>Tap <b>Call</b> on a pending student, place the call, pick an outcome, Save and Finish.</li>
+      <li>Back on the task a brief spinner shows, then the count becomes <b>5 of 26</b> and that student shows Reached — no manual refresh needed.</li>
+      <li>Pick <b>Couldn't reach</b> on another: count still advances, student shows No answer.</li>
+      <li>Confirm there is <b>no</b> "Record result" button anywhere — only Call / Call again.</li>
+      <li>If a result ever fails to save, an error now appears on the task screen saying why.</li>
+    </ol>
+
+    <div class="pass"><code>flutter analyze</code> clean, 132 tests pass.</div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">Calling a task student now records the result</span><span class="when">15 Nov</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/ui/views/call/call_view.dart · call_summary/call_summary_view.dart · tasks/task_detail_view.dart · data/task_models.dart (TargetStatus.forCall)</p>

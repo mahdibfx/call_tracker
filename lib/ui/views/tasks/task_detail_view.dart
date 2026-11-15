@@ -7,7 +7,6 @@ import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
 import 'package:call_tracker/ui/views/call/call_view.dart';
 import 'package:call_tracker/ui/views/reports/widgets/report_card.dart';
-import 'package:call_tracker/ui/views/tasks/widgets/result_sheet.dart';
 import 'package:call_tracker/ui/widgets/app_top_bar.dart';
 import 'package:call_tracker/ui/widgets/avatar_circle.dart';
 import 'package:call_tracker/ui/widgets/custom_text.dart';
@@ -35,6 +34,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   bool _loading = true;
   bool _changed = false;
 
+  /// True while a just-finished call's result is being written, so the screen
+  /// shows a brief overlay instead of the agent wondering if it took.
+  bool _saving = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,11 +53,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
     });
   }
 
-  /// Hands the student to the normal call flow, so a task call is tracked and
-  /// verified exactly like any other — and, because the task id travels with
-  /// it, the outcome the agent picks on the call summary is written straight
-  /// back as this target's result. The call flow returns here (not to the tab
-  /// shell) so the student ticks over in front of them.
+  /// Hands the student to the normal call flow, then records what the agent
+  /// picked as this target's result. Recording here — and reloading only once
+  /// the write has landed — is why the count actually moves; doing it inside
+  /// the call screen raced this reload and left the task showing stale numbers.
   Future<void> _call(TaskTarget target) async {
     final student = Student(
       id: target.studentId,
@@ -64,7 +66,7 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         StudentPhone(number: target.phone, type: 'personal', isPrimary: true),
       ],
     );
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<({CallOutcome? outcome, String note})>(
       MaterialPageRoute(
         builder: (_) => CallView(
           student: student,
@@ -77,28 +79,20 @@ class _TaskDetailViewState extends State<TaskDetailView> {
         ),
       ),
     );
-    // The call recorded the result; reload so the list and progress reflect it.
-    if (!mounted) return;
-    _changed = true;
-    await _load();
-  }
-
-  Future<void> _recordResult(TaskTarget target) async {
-    final result = await showResultSheet(context, target);
+    // Null = the agent backed out of the call without finishing; nothing to record.
     if (!mounted || result == null) return;
 
+    setState(() => _saving = true);
     final error = await TaskApi.setTargetResult(
       _task.id,
       target.id,
-      status: result.status,
+      status: TargetStatus.forCall(result.outcome),
       note: result.note,
     );
     if (!mounted) return;
+    setState(() => _saving = false);
     if (error != null) {
-      showTopSnackBar(
-        Overlay.of(context),
-        CustomSnackBar.error(message: error),
-      );
+      showTopSnackBar(Overlay.of(context), CustomSnackBar.error(message: error));
       return;
     }
     _changed = true;
@@ -115,42 +109,50 @@ class _TaskDetailViewState extends State<TaskDetailView> {
       child: Scaffold(
         backgroundColor: AppColors.backgroundColor,
         appBar: const AppTopBar(title: 'Task'),
-        body: _loading && _task.targets.isEmpty
-            ? const Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _load,
-                color: AppColors.primaryColor,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  children: [
-                    _header(),
-                    verticalSpaceMedium,
-                    CustomText.bodyBold(
-                      text: 'Students (${_task.summary.total})',
-                      fontSize: 14,
-                    ),
-                    verticalSpaceSmall,
-                    if (_task.targets.isEmpty)
-                      CustomText.subtitle(
-                        text: 'Nobody has been added to this task yet.',
-                      )
-                    else
-                      for (final target in _task.targets) ...[
-                        _TargetTile(
-                          target: target,
-                          // A cancelled task is read-only: the backend answers
-                          // 409 on any result, so offering the buttons would
-                          // only produce an error.
-                          actionable: _task.status != TaskStatus.cancelled,
-                          onCall: () => _call(target),
-                          onRecord: () => _recordResult(target),
+        body: Stack(
+          children: [
+            _loading && _task.targets.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    color: AppColors.primaryColor,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      children: [
+                        _header(),
+                        verticalSpaceMedium,
+                        CustomText.bodyBold(
+                          text: 'Students (${_task.summary.total})',
+                          fontSize: 14,
                         ),
                         verticalSpaceSmall,
+                        if (_task.targets.isEmpty)
+                          CustomText.subtitle(
+                            text: 'Nobody has been added to this task yet.',
+                          )
+                        else
+                          for (final target in _task.targets) ...[
+                            _TargetTile(
+                              target: target,
+                              // A cancelled task is read-only: the backend
+                              // answers 409 on any result, so offering the call
+                              // would only produce an error.
+                              actionable: _task.status != TaskStatus.cancelled,
+                              onCall: () => _call(target),
+                            ),
+                            verticalSpaceSmall,
+                          ],
                       ],
-                  ],
-                ),
+                    ),
+                  ),
+            if (_saving)
+              const ColoredBox(
+                color: Color(0x66000000),
+                child: Center(child: CircularProgressIndicator()),
               ),
+          ],
+        ),
       ),
     );
   }
@@ -234,13 +236,11 @@ class _TargetTile extends StatelessWidget {
     required this.target,
     required this.actionable,
     required this.onCall,
-    required this.onRecord,
   });
 
   final TaskTarget target;
   final bool actionable;
   final VoidCallback onCall;
-  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -286,28 +286,17 @@ class _TargetTile extends StatelessWidget {
           ],
           if (actionable) ...[
             verticalSpaceSmall,
-            Row(
-              children: [
-                Expanded(
-                  child: _Action(
-                    icon: Icons.call,
-                    // Once there is a result, calling again is a second
-                    // attempt rather than the main action.
-                    label: done ? 'Call again' : 'Call',
-                    primary: !done,
-                    onTap: target.hasPhone ? onCall : null,
-                  ),
-                ),
-                horizontalSpaceSmall,
-                Expanded(
-                  child: _Action(
-                    icon: Icons.edit_note,
-                    label: done ? 'Change result' : 'Record result',
-                    primary: done,
-                    onTap: onRecord,
-                  ),
-                ),
-              ],
+            // The result is recorded from the call outcome, so Call is the only
+            // action — no separate Record button. Once there's a result, this
+            // becomes a second attempt.
+            SizedBox(
+              width: double.infinity,
+              child: _Action(
+                icon: Icons.call,
+                label: done ? 'Call again' : 'Call',
+                primary: !done,
+                onTap: target.hasPhone ? onCall : null,
+              ),
             ),
           ],
         ],

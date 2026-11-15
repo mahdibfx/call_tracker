@@ -7,8 +7,6 @@ import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
 import 'package:call_tracker/main.dart';
-import 'package:call_tracker/data/task_api.dart';
-import 'package:call_tracker/data/task_models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -109,56 +107,44 @@ class _CallSummaryViewState extends State<CallSummaryView> {
     // Local first, so the call is in the agent's history even with no signal.
     await CallHistoryStore.add(record);
 
-    // Everything the background sync needs, captured before this screen is
-    // gone — it must not touch `widget`/`context`/`setState` afterwards.
+    // Captured before this screen closes — the background submit must not
+    // touch `widget`/`context`/`setState` afterwards.
     final outcome = _selectedOutcome;
+    final note = _notesController.text.trim();
     final startedAt = widget.startedAtEpochMs;
     final studentName = widget.student.name;
     final reasonLabel = widget.reason.label;
-    final taskId = widget.taskId;
-    final targetId = widget.targetId;
 
-    // Leave immediately. A field agent must never be trapped on "Finishing…"
-    // while the phone's data reconnects after a call — which is exactly what an
-    // awaited submit here did. The call is already saved locally; the server
-    // sync runs in the background and reports itself through the root overlay.
+    // The call-tracker submit goes out in the background so a reconnecting
+    // mobile link never traps the agent here. It is independent of the task.
+    unawaited(_submitCall(record, reasonLabel, outcome?.label ?? '', startedAt, studentName));
+
     if (!mounted) return;
-    if (taskId != null) {
-      // Back to the task detail (one pop — CallView replaced itself here).
-      Navigator.of(context).pop();
+    if (widget.taskId != null) {
+      // Hand the outcome back to the task screen, which records it against the
+      // target and reloads — so the result actually reflects. Recording here
+      // (then reloading there) would race the reload and show stale counts.
+      Navigator.of(context).pop((outcome: outcome, note: note));
     } else {
+      RefreshSignal.fire();
       Navigator.of(context).popUntil((route) => route.isFirst);
     }
-    RefreshSignal.fire();
-
-    unawaited(_syncToServer(
-      record: record,
-      reasonLabel: reasonLabel,
-      outcome: outcome,
-      startedAt: startedAt,
-      studentName: studentName,
-      taskId: taskId,
-      targetId: targetId,
-    ));
   }
 
-  /// Sends the finished call, and (for a task call) the target result, after
-  /// the screen has already closed. Static so it cannot accidentally reach
-  /// into the disposed State; it reports through the root navigator's overlay.
-  static Future<void> _syncToServer({
-    required CallRecord record,
-    required String reasonLabel,
-    required CallOutcome? outcome,
-    required int startedAt,
-    required String studentName,
-    required int? taskId,
-    required int? targetId,
-  }) async {
+  /// Sends the finished call after the screen has closed. Static so it cannot
+  /// reach into the disposed State; reports a failure through the root overlay.
+  static Future<void> _submitCall(
+    CallRecord record,
+    String reasonLabel,
+    String outcomeLabel,
+    int startedAt,
+    String studentName,
+  ) async {
     final result = await ApiService.submitCall(
       studentId: record.studentId,
       studentName: record.studentName,
       reason: reasonLabel,
-      outcome: outcome?.label ?? '',
+      outcome: outcomeLabel,
       notes: record.notes,
       reallyDialed: record.reallyDialed,
       talkDurationSeconds: record.talkDurationSeconds,
@@ -169,36 +155,15 @@ class _CallSummaryViewState extends State<CallSummaryView> {
       startedAtEpochMs: startedAt,
       endedAtEpochMs: record.timestampEpochMs,
     );
-
-    String? taskError;
-    if (taskId != null && targetId != null) {
-      taskError = await TaskApi.setTargetResult(
-        taskId,
-        targetId,
-        status: TargetStatus.forCall(outcome),
-        note: record.notes ?? '',
-        // Links the call to the target when the backend returned its id.
-        callId: (result?['id'] as num?)?.toInt(),
-      );
-      // The target changed server-side, so refresh an open task screen.
-      if (taskError == null) RefreshSignal.fire();
-    }
-
+    if (result != null) return;
     final overlay = appNavigatorKey.currentState?.overlay;
     if (overlay == null) return;
-    if (result == null) {
-      showTopSnackBar(
-        overlay,
-        CustomSnackBar.error(
-          message: "Couldn't send $studentName's call — it's saved on your phone.",
-        ),
-      );
-    } else if (taskError != null) {
-      showTopSnackBar(
-        overlay,
-        CustomSnackBar.error(message: 'Call sent, but the task result did not: $taskError'),
-      );
-    }
+    showTopSnackBar(
+      overlay,
+      CustomSnackBar.error(
+        message: "Couldn't send $studentName's call — it's saved on your phone.",
+      ),
+    );
   }
 
   @override
