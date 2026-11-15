@@ -61,6 +61,37 @@
      its <details>, and remove the `open` attribute so it folds into history. -->
 
 <details open>
+  <summary><span class="title">Calling a task student now records the result</span><span class="when">15 Nov</span><span class="tag t-device">needs device</span></summary>
+  <div class="body">
+    <p class="where">lib/ui/views/call/call_view.dart · call_summary/call_summary_view.dart · tasks/task_detail_view.dart · data/task_models.dart (TargetStatus.forCall)</p>
+
+    <p><b>The bug.</b> You open a task, tap <b>Call</b> on a student, place the call and pick the outcome — and the task still read <i>0 of 26 called</i>. The call was logging fine, but it never touched the task's target, and when the call was submitted the app unwound all the way back to the tab shell. So the student stayed <i>pending</i>, and there was no way back to the manual <i>Record result</i> button.</p>
+
+    <p><b>The fix.</b> A call placed from inside a task now carries the task with it. When the call is submitted, the outcome you chose is written straight back as that student's result — <i>Couldn't reach</i> becomes <b>No answer</b>, every other outcome becomes <b>Reached</b> — and the app returns you to the <b>task</b>, not the tab shell, so the student ticks over and the progress bar moves in front of you. No separate step. The call id is linked to the target when the backend returns one.</p>
+
+    <p>Nothing changes for a normal call placed from the Calls tab — that still unwinds to the shell as before. The manual <i>Record result</i> button stays for a student you did not call (Skipped).</p>
+
+    <div class="lbl">How to test</div>
+    <ol>
+      <li>Open a task with students still to call.</li>
+      <li>Tap <b>Call</b> on one, place the call, pick an outcome, submit.</li>
+      <li>You should land back <b>on the task</b>, with that student now <b>Reached</b> and the count moved (e.g. <i>1 of 26</i>).</li>
+      <li>Call another and pick <b>Couldn't reach</b>: the student should show <b>No answer</b>, and the count still advances.</li>
+      <li>Call the <b>last</b> remaining student: the task should flip to <b>Done</b> on its own.</li>
+      <li>From the plain Calls tab, place a call as usual: it should still drop you back at the tab shell, unchanged.</li>
+    </ol>
+
+    <div class="pass">
+      <code>flutter analyze</code> clean, 132 tests pass. <code>test/task_parsing_test.dart</code> pins the outcome→result mapping so a reached call can never be recorded as a miss. Confirmed against the live API that the target write itself works (tasks already carry recorded <code>done</code>/<code>no_answer</code> results).
+    </div>
+
+    <div class="need">
+      The end-to-end call→record flow has not been run on a handset against a task assigned to the signed-in agent — the only recovered agent login (online.elameed) is an admin with no tasks of its own. Assign it a task from the dashboard, or test on the agent account that hit this, to confirm on device.
+    </div>
+  </div>
+</details>
+
+<details open>
   <summary><span class="title">Tasks: the student lists the office hands an agent</span><span class="when">11 Nov</span><span class="tag t-device">needs device</span></summary>
   <div class="body">
     <p class="where">lib/data/task_models.dart · task_api.dart · lib/ui/views/tasks/ (list, detail, card, result sheet) · app_area.dart · push_service.dart · root_view.dart</p>

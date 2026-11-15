@@ -142,4 +142,18 @@ void main() {
       expect(TaskCounts.fromJson(null).done, 0);
     });
   });
+
+  group('call outcome → target result', () {
+    test('only "could not reach" is a miss; every other outcome is a reach', () {
+      expect(TargetStatus.forCall(CallOutcome.couldNotReach), TargetStatus.noAnswer);
+      for (final o in CallOutcome.values) {
+        if (o == CallOutcome.couldNotReach) continue;
+        expect(TargetStatus.forCall(o), TargetStatus.done, reason: o.name);
+      }
+    });
+
+    test('no outcome chosen defaults to reached, matching the summary default', () {
+      expect(TargetStatus.forCall(null), TargetStatus.done);
+    });
+  });
 }

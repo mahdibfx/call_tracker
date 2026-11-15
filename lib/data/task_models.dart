@@ -6,6 +6,8 @@
 /// `AppArea.forUser`.
 library;
 
+import 'package:call_tracker/data/models.dart' show CallOutcome;
+
 /// Where a task is in its life. The agent never sets this: the backend moves
 /// the task to `inProgress` at the first result and to `done` when no student
 /// is left pending.
@@ -77,6 +79,12 @@ enum TargetStatus {
     // An unknown result is safer read as "still to do" than as finished.
     return pending;
   }
+
+  /// The task result a finished call implies. Every outcome means the line
+  /// connected except "couldn't reach" — mapping those two the wrong way
+  /// would mark a reached student as missed, or the reverse.
+  static TargetStatus forCall(CallOutcome? outcome) =>
+      outcome == CallOutcome.couldNotReach ? noAnswer : done;
 }
 
 /// How many students are in each result. Drives the progress bar.

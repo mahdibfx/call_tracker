@@ -4,6 +4,8 @@ import 'package:call_tracker/data/auth_service.dart';
 import 'package:call_tracker/data/call_history_store.dart';
 import 'package:call_tracker/data/models.dart';
 import 'package:call_tracker/data/refresh_signal.dart';
+import 'package:call_tracker/data/task_api.dart';
+import 'package:call_tracker/data/task_models.dart';
 import 'package:call_tracker/ui/common/app_colors.dart';
 import 'package:call_tracker/ui/common/app_styles.dart';
 import 'package:call_tracker/ui/common/ui_helpers.dart';
@@ -21,6 +23,8 @@ class CallSummaryView extends StatefulWidget {
     required this.durationSeconds,
     required this.startedAtEpochMs,
     this.verification,
+    this.taskId,
+    this.targetId,
   });
 
   final Student student;
@@ -31,6 +35,12 @@ class CallSummaryView extends StatefulWidget {
   /// end time so a late submission still records when the call really was.
   final int startedAtEpochMs;
   final CallVerification? verification;
+
+  /// Set when this call is one student on a task: the outcome chosen here is
+  /// also written back as that target's result, so the agent never has to
+  /// reopen the task to record what happened.
+  final int? taskId;
+  final int? targetId;
 
   @override
   State<CallSummaryView> createState() => _CallSummaryViewState();
@@ -114,10 +124,41 @@ class _CallSummaryViewState extends State<CallSummaryView> {
         );
       }
     }
+    // One student on a task: the call outcome is the task result too, so
+    // record it here instead of making the agent reopen the task. The only
+    // outcome that is not a reach is "couldn't reach"; the rest mean the line
+    // connected. A failure here is shown but does not block leaving — the call
+    // itself is already logged.
+    final taskId = widget.taskId;
+    final targetId = widget.targetId;
+    if (taskId != null && targetId != null) {
+      final error = await TaskApi.setTargetResult(
+        taskId,
+        targetId,
+        status: TargetStatus.forCall(_selectedOutcome),
+        note: _notesController.text,
+        // Links the call to the target when the backend returned its id.
+        callId: (result?['id'] as num?)?.toInt(),
+      );
+      if (error != null && mounted) {
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(message: 'Call saved, but the task result did not: $error'),
+        );
+      }
+    }
+
     // The tabs underneath were built before this call existed.
     RefreshSignal.fire();
     if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // From a task, drop back to the task detail (one pop — CallView replaced
+    // itself with this screen) so the agent sees the student tick over.
+    // Otherwise unwind to the tab shell as a normal call does.
+    if (taskId != null) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   @override

@@ -25,6 +25,8 @@ class CallView extends StatefulWidget {
     required this.reason,
     required this.number,
     this.numberType = 'personal',
+    this.taskId,
+    this.targetId,
   });
 
   final Student student;
@@ -41,6 +43,12 @@ class CallView extends StatefulWidget {
   /// `personal` or `parent`, carried through so the finished call can say
   /// which line was reached.
   final String numberType;
+
+  /// Set when this call is one student on a task. The result is then recorded
+  /// against that target when the call is submitted, instead of the agent
+  /// having to reopen the task and record it by hand.
+  final int? taskId;
+  final int? targetId;
 
   @override
   State<CallView> createState() => _CallViewState();
@@ -154,6 +162,8 @@ class _CallViewState extends State<CallView> with WidgetsBindingObserver {
           durationSeconds: verification.talkDurationSeconds,
           verification: verification,
           startedAtEpochMs: pending.startedAtEpochMs,
+          taskId: widget.taskId,
+          targetId: widget.targetId,
         ),
       ),
     );

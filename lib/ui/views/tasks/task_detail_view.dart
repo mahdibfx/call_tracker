@@ -51,13 +51,10 @@ class _TaskDetailViewState extends State<TaskDetailView> {
   }
 
   /// Hands the student to the normal call flow, so a task call is tracked and
-  /// verified exactly like any other.
-  ///
-  /// ponytail: the call is not linked back to the target (`call_id` stays
-  /// null). CallSummaryView unwinds to the root when it submits, so carrying
-  /// the new call's id back here means changing that unwind — a change to the
-  /// one flow that cannot be unit-tested. Record the result by hand for now;
-  /// wire `call_id` when the unwind is revisited.
+  /// verified exactly like any other — and, because the task id travels with
+  /// it, the outcome the agent picks on the call summary is written straight
+  /// back as this target's result. The call flow returns here (not to the tab
+  /// shell) so the student ticks over in front of them.
   Future<void> _call(TaskTarget target) async {
     final student = Student(
       id: target.studentId,
@@ -75,9 +72,15 @@ class _TaskDetailViewState extends State<TaskDetailView> {
           // closest of the fixed reasons rather than inventing one.
           reason: CallReason.inquiryOnAbsences,
           number: target.phone,
+          taskId: _task.id,
+          targetId: target.id,
         ),
       ),
     );
+    // The call recorded the result; reload so the list and progress reflect it.
+    if (!mounted) return;
+    _changed = true;
+    await _load();
   }
 
   Future<void> _recordResult(TaskTarget target) async {
