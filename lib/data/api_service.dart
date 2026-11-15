@@ -344,7 +344,7 @@ class ApiService {
           'startedAtEpochMs': startedAtEpochMs,
           'endedAtEpochMs': endedAtEpochMs,
         }),
-      );
+      ).timeout(const Duration(seconds: 25));
       if (await _isUnauthorized(res)) return null;
       if (res.statusCode != 201) return null;
       return jsonDecode(res.body) as Map<String, dynamic>;

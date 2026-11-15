@@ -85,15 +85,19 @@ class TaskApi {
     int? callId,
   }) async {
     try {
-      final res = await http.put(
-        Uri.parse('$_host/tasks/$taskId/targets/$targetId'),
-        headers: await ApiService.authHeaders(),
-        body: jsonEncode({
-          'status': status.code,
-          if (note != null && note.trim().isNotEmpty) 'result_note': note.trim(),
-          'call_id': ?callId,
-        }),
-      );
+      final res = await http
+          .put(
+            Uri.parse('$_host/tasks/$taskId/targets/$targetId'),
+            headers: await ApiService.authHeaders(),
+            body: jsonEncode({
+              'status': status.code,
+              if (note != null && note.trim().isNotEmpty) 'result_note': note.trim(),
+              'call_id': ?callId,
+            }),
+          )
+          // The backend cold-starts on Render; without a bound this await can
+          // hang for minutes and the call summary never leaves the screen.
+          .timeout(const Duration(seconds: 25));
       if (await ApiService.isUnauthorized(res)) {
         return 'Your session ended. Sign in again.';
       }

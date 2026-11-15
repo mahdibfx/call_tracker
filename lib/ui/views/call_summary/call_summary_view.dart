@@ -48,6 +48,10 @@ class CallSummaryView extends StatefulWidget {
 
 class _CallSummaryViewState extends State<CallSummaryView> {
   CallOutcome? _selectedOutcome = CallOutcome.interested;
+
+  /// True while a finish is in flight, so the button shows progress and a
+  /// second tap (or the X) cannot fire a duplicate submit.
+  bool _finishing = false;
   final _notesController = TextEditingController();
 
   static const _outcomeIcons = {
@@ -79,6 +83,8 @@ class _CallSummaryViewState extends State<CallSummaryView> {
       : 'The call was not answered.';
 
   Future<void> _finish() async {
+    if (_finishing) return;
+    setState(() => _finishing = true);
     final agent = await AuthService.currentAgent();
     final record = CallRecord(
       studentId: widget.student.id,
@@ -150,7 +156,9 @@ class _CallSummaryViewState extends State<CallSummaryView> {
 
     // The tabs underneath were built before this call existed.
     RefreshSignal.fire();
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     // From a task, drop back to the task detail (one pop — CallView replaced
     // itself with this screen) so the agent sees the student tick over.
     // Otherwise unwind to the tab shell as a normal call does.
@@ -172,7 +180,7 @@ class _CallSummaryViewState extends State<CallSummaryView> {
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.close, color: AppColors.textColor),
-          onPressed: _finish,
+          onPressed: _finishing ? null : _finish,
         ),
         title: CustomText.title(text: 'Call Summary', fontSize: 18),
       ),
@@ -317,7 +325,10 @@ class _CallSummaryViewState extends State<CallSummaryView> {
             minLines: 4,
           ),
           verticalSpaceMedium,
-          CustomButton(text: 'Save and Finish', onPressed: _finish),
+          CustomButton(
+            text: _finishing ? 'Finishing…' : 'Save and Finish',
+            onPressed: _finishing ? null : _finish,
+          ),
         ],
       ),
     );
